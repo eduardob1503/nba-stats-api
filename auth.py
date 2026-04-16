@@ -6,27 +6,25 @@ import jwt
 import datetime
 import os
 from dotenv import load_dotenv
+from email_validator import validate_email, EmailNotValidError
 
 load_dotenv()
 DB_CONFIG = {
-    "host":"localhost",
-    "port": "5432",
-    "user": "postgres",
-    "password": "postgres",
-    "database": "nba"
+    "host":os.getenv("host"),
+    "port": os.getenv("port"),
+    "user": os.getenv("user"),
+    "password": os.getenv("password"),
+    "database": os.getenv("database")
 }
-
 SECRET_KEY = os.getenv("SECRET_KEY") 
 
-payload = {}
-token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+
 
 def conectar():
     conn = psycopg2.connect(**DB_CONFIG)
     return conn
 
 
-from email_validator import validate_email, EmailNotValidError
 
 def is_email(email: str) -> bool:
     try:
@@ -67,7 +65,7 @@ def init_auth(app):
 
     @app.route('/login',methods=["POST"])
     def login():
-        
+        payload = {}
         login_user = request.get_json()
         if not login_user:
             return jsonify({"erro":"json vazio"}),400
