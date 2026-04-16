@@ -107,6 +107,8 @@ def adicionar_pontos(code):
     cur.execute("SELECT 1 FROM jogadores WHERE code_jogador = %s",(code,))
     resultado = cur.fetchone()
     if resultado is None:
+        cur.close()
+        conn.close()   
         return jsonify({"erro":"jogador inexistente"}),400
     for ponto in pontos:
         if not isinstance(ponto, (int,float)):

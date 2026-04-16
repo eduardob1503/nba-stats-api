@@ -40,20 +40,30 @@ def init_auth(app):
         cur = conn.cursor()
         cadastro_user = request.get_json()
         if not cadastro_user:
+            cur.close()
+            conn.close()
             return jsonify({"erro":"json vazio"}),400
         email = cadastro_user.get("email")
         senha = cadastro_user.get("senha")
         nome = cadastro_user.get("nome")
         if is_email(email) is False:
+            cur.close()
+            conn.close()
             return jsonify({"erro": "email invalido"}),400
         cur.execute("SELECT 1 FROM usuarios WHERE email = %s",(email,))
         resultado = cur.fetchone()
         if resultado is not None:
+            cur.close()
+            conn.close()
             return jsonify({"erro":"email ja existente"}),400
         if not senha or not isinstance(senha,(str)):
+            cur.close()
+            conn.close()
             return jsonify({"erro":"senha invalida"}),400
         
         if not nome or not isinstance (nome,(str)):
+            cur.close()
+            conn.close()
             return jsonify({"erro": "nome invalido"}),400
         senha_crypt = criptografar_senha(senha)
         cur.execute("INSERT INTO usuarios (nome,email,senha)VALUES(%s,%s,%s)",(nome,email,senha_crypt))
@@ -71,7 +81,7 @@ def init_auth(app):
             return jsonify({"erro":"json vazio"}),400
         email_login = login_user.get("email")
         if not email_login:
-            return jsonify({"erro":"emali vazio"}),400
+            return jsonify({"erro":"email vazio"}),400
         senha_login = login_user.get("senha")    
         if not senha_login:
             return jsonify({"erro":"senha vazia"}),400
@@ -87,8 +97,8 @@ def init_auth(app):
         payload["id"] = resultado[0]
         payload["email"] = resultado[2]
         payload["is_admin"] = resultado[4]
-        token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
         if bcrypt.checkpw(senha_login.encode("utf-8"),senha_hash.encode("utf-8")):
+            token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
             cur.close()
             conn.close()
             return jsonify(token),200
