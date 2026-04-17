@@ -3,7 +3,7 @@ from flask import Flask, jsonify, request
 import auth
 from functools import wraps
 import jwt
-
+from math import sqrt
 DB_CONFIG = auth.DB_CONFIG
 
 app = Flask(__name__)
@@ -110,6 +110,7 @@ def obter_por_id(code):
     dados_jogador={}
     dados_jogador["id"] = jogador_banco[0][1]
     id_partidas=[]
+    desvios=0
     for partida in jogador_banco:
         pontos_totais.append(partida[2])
         id_partidas.append(partida[0])
@@ -117,6 +118,11 @@ def obter_por_id(code):
     dados_jogador["pontos"]=pontos_totais
     dados_jogador["media"] = sum(pontos_totais)/len(pontos_totais)
     dados_jogador["jogos"] = len(pontos_totais)
+    dados_jogador["maximo"] = max(pontos_totais)
+    dados_jogador["minimo"] = min(pontos_totais)
+    for ponto in pontos_totais:
+        desvios += ((ponto - dados_jogador["media"])**2)/dados_jogador["jogos"]
+    dados_jogador["desvio_padrao"] = sqrt(desvios)
     cur.close()
     conn.close()
     return jsonify(dados_jogador),200
@@ -178,15 +184,22 @@ def adicionar_jogador():
             return jsonify({"erro": "nome curto"}),400
         sobrenome = partes[1]
         primeiro = partes[0]
-        code_jogador = sobrenome[0:5]+primeiro[0:2]+"01"
-        
+        indice = 1
+        code_jogador = sobrenome[0:5]+primeiro[0:2]+"0"+str(indice)
+        novo_jogador["code"] = code_jogador
+        cur.execute("SELECT 1 FROM jogadores where code_jogador = %s",(code_jogador,))
+        resultado = cur.fetchone()
+        while resultado is not None:
+            indice += 1
+            code_jogador = sobrenome[0:5]+primeiro[0:2]+"0"+str(indice)
+            cur.execute("SELECT 1 FROM jogadores where code_jogador = %s",(code_jogador,))
+            resultado = cur.fetchone()
         novo_jogador["code"] = code_jogador
         cur.execute("INSERT INTO jogadores(code_jogador,nome)VALUES(%s,%s)"
-                    ,(novo_jogador["code"],novo_jogador["nome"]))
+        ,(novo_jogador["code"],novo_jogador["nome"]))
         conn.commit()
         cur.close()
         conn.close()
-
         return jsonify(novo_jogador),201
 
 @app.route('/jogadores/<code>',methods=["DELETE"])
