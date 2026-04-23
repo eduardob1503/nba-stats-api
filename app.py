@@ -7,7 +7,7 @@ from auths.routes import auth_bp
 from jogadores.routes import jogadores_bp
 import config
 
-DB_CONFIG = config.DB_CONFIG
+DATABASE_URL = config.DATABASE_URL
 
 app = Flask(__name__)
 app.register_blueprint(jogadores_bp)

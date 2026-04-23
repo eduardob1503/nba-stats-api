@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-DB_CONFIG = {
+DATABASE_URL = {
     "host":os.getenv("host"),
     "port": os.getenv("port"),
     "user": os.getenv("user"),
