@@ -99,7 +99,7 @@ CREATE TABLE ppg (
 #Para acessar rotas administrativas, promova um usuário a admin via banco
 UPDATE usuarios
 SET is_admin = TRUE
-WHERE email = seu_email@email.com;
+WHERE email = 'seu_email@email.com';
 ```
 
 ### 5. Suba a API
