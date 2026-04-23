@@ -1,5 +1,5 @@
 import psycopg2
-from config import DB_CONFIG
+from config import DATABASE_URL
 def conectar():
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = psycopg2.connect(**DATABASE_URL)
     return conn
