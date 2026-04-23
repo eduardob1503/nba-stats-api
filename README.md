@@ -122,6 +122,7 @@ Authorization: Bearer <seu_token>
 Existem dois níveis de acesso:
 
 | Role | Permissões |
+|------|-----------|
 | Usuário logado | Consultar jogadores e estatísticas |
 | Admin | Criar, editar e deletar jogadores e pontuações |
 
