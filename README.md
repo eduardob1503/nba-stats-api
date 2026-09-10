@@ -13,6 +13,7 @@ API RESTful para consulta e gerenciamento de estatísticas de jogadores da NBA, 
 |-----------|-----|
 | Python 3 + Flask | Framework web e roteamento |
 | PostgreSQL + psycopg2 | Banco de dados relacional |
+| nba_api | Pontuações reais, obtidas automaticamente da NBA |
 | PyJWT | Autenticação stateless com tokens |
 | bcrypt | Hash seguro de senhas |
 | gunicorn | Servidor WSGI para produção |
@@ -27,6 +28,10 @@ nba-stats-api/
 ├── app.py                  # Inicialização do app e registro dos blueprints
 ├── config.py               # DATABASE_URL e SECRET_KEY via variáveis de ambiente
 ├── database.py             # Função conectar() com suporte a SSL em produção
+├── migrations/
+│   ├── 000_base_schema.sql # Criação idempotente das tabelas base
+│   ├── 001_nba_sync.sql    # Campos e índice para sincronização sem duplicatas
+│   └── 002_seed_players.sql# Jogadores iniciais exibidos no frontend
 ├── Procfile                # Comando de start para o Render (gunicorn)
 ├── requirements.txt        # Dependências do projeto
 ├── .env.example            # Modelo de variáveis de ambiente
@@ -36,6 +41,10 @@ nba-stats-api/
 ├── jogadores/
 │   ├── __init__.py
 │   └── routes.py           # CRUD /jogadores
+├── services/
+│   └── nba.py              # Consulta e normalização dos dados da NBA
+├── tests/
+│   └── test_nba_service.py # Testes da integração, sem depender da rede
 ├── middlewares/
 │   ├── __init__.py
 │   └── auth.py             # @login_required  |  @admin_required
@@ -77,6 +86,8 @@ cp .env.example .env
 DATABASE_URL=postgresql://postgres:sua_senha@localhost:5432/nba
 SECRET_KEY=sua_chave_secreta_aqui
 ENV=development
+NBA_API_TIMEOUT=20
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173
 ```
 
 Gere uma SECRET_KEY segura com:
@@ -100,15 +111,32 @@ CREATE TABLE usuarios (
 CREATE TABLE jogadores (
     id SERIAL PRIMARY KEY,
     code_jogador VARCHAR(20) UNIQUE,
-    nome VARCHAR(100)
+    nome VARCHAR(100),
+    nba_player_id BIGINT
 );
 
 CREATE TABLE ppg (
     id SERIAL PRIMARY KEY,
     id_jogador VARCHAR(20) REFERENCES jogadores(code_jogador),
-    pontos NUMERIC
+    pontos NUMERIC,
+    game_id VARCHAR(20),
+    temporada VARCHAR(7),
+    data_partida DATE,
+    adversario VARCHAR(30),
+    UNIQUE (id_jogador, game_id)
 );
 ```
+
+As migrações são idempotentes e podem ser executadas em sequência:
+
+```bash
+psql "$DATABASE_URL" -f migrations/000_base_schema.sql
+psql "$DATABASE_URL" -f migrations/001_nba_sync.sql
+psql "$DATABASE_URL" -f migrations/002_seed_players.sql
+```
+
+`CORS_ORIGINS` recebe uma lista separada por vírgulas. Ao publicar o frontend,
+adicione também a URL HTTPS dele nessa variável.
 
 Para promover um usuário a admin:
 ```sql
@@ -221,6 +249,55 @@ Adiciona registros de pontuação para um jogador.
 { "pontos": [28, 31, 19] }
 ```
 
+#### `GET /jogadores/<code>/nba` — 🔒 Login
+Consulta automaticamente as partidas reais na NBA, sem alterar o banco. A temporada
+é opcional e usa o formato `AAAA-AA`; quando omitida, a API escolhe a temporada mais
+recente.
+
+```http
+GET /jogadores/jamesle01/nba?temporada=2025-26&tipo=Regular%20Season
+Authorization: Bearer <token>
+```
+
+```json
+{
+  "code": "jamesle01",
+  "nome": "LeBron James",
+  "nba_player_id": 2544,
+  "temporada": "2025-26",
+  "jogos": 3,
+  "pontos": [21, 29, 33],
+  "media": 27.67,
+  "partidas": [
+    {
+      "game_id": "0022500001",
+      "data": "2025-10-21",
+      "adversario": "LAL vs. GSW",
+      "pontos": 21
+    }
+  ]
+}
+```
+
+#### `POST /jogadores/<code>/sincronizar` — 👑 Admin
+Busca os jogos reais e grava/atualiza os pontos no PostgreSQL. O `game_id` oficial
+impede que uma nova sincronização duplique partidas.
+
+```json
+// Body opcional
+{ "temporada": "2025-26", "tipo": "Regular Season" }
+
+// Resposta 200
+{
+  "mensagem": "dados da NBA sincronizados",
+  "code": "jamesle01",
+  "nba_player_id": 2544,
+  "temporada": "2025-26",
+  "tipo_temporada": "Regular Season",
+  "jogos_sincronizados": 82
+}
+```
+
 #### `DELETE /jogadores/<code>` — 👑 Admin
 Remove o jogador e todos os seus registros de pontuação.
 
@@ -246,10 +323,10 @@ Remove o jogador e todos os seus registros de pontuação.
 
 - [ ] Context manager para conexões automáticas com o banco
 - [ ] Rate limiting no `/login` com Flask-Limiter
-- [ ] Testes automatizados com pytest
-- [ ] Stats avançadas: `max`, `min`, desvio padrão por jogador
+- [x] Testes automatizados da integração com a NBA
+- [x] Stats avançadas: `max`, `min`, desvio padrão por jogador
 - [ ] Endpoint `/jogadores/:code/tendencia` — média dos últimos 5/10/15 jogos
-- [ ] Integração com dados reais via `nba_api` (PyPI)
+- [x] Integração com dados reais via `nba_api` (PyPI)
 - [ ] Documentação interativa com Swagger (Flask-RESTX)
 - [ ] Docker Compose para ambiente de desenvolvimento
 
