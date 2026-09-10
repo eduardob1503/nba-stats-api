@@ -16,8 +16,10 @@ def criptografar_senha(senha):
 auth_bp = Blueprint("auth",__name__)
 
 def is_email(email: str) -> bool:
+    if not isinstance(email, str):
+        return False
     try:
-        validate_email(email)  # Valida formato e domínio
+        validate_email(email, check_deliverability=False)
         return True
     except EmailNotValidError:
         return False
@@ -29,9 +31,11 @@ def criar_login():
         return jsonify({"erro":"json vazio"}),400
     conn = conectar()
     cur = conn.cursor()
-    email = cadastro_user.get("email")
+    email_recebido = cadastro_user.get("email")
+    email = email_recebido.strip().lower() if isinstance(email_recebido, str) else email_recebido
     senha = cadastro_user.get("senha")
-    nome = cadastro_user.get("nome")
+    nome_recebido = cadastro_user.get("nome")
+    nome = nome_recebido.strip() if isinstance(nome_recebido, str) else nome_recebido
     if is_email(email) is False:
         cur.close()
         conn.close()
@@ -41,7 +45,7 @@ def criar_login():
     if resultado is not None:
         cur.close()
         conn.close()
-        return jsonify({"erro":"email ja existente"}),400
+        return jsonify({"erro":"email ja existente"}),409
     if not senha or not isinstance(senha,(str)):
         cur.close()
         conn.close()
@@ -65,7 +69,8 @@ def login():
     login_user = request.get_json()
     if not login_user:
         return jsonify({"erro":"json vazio"}),400
-    email_login = login_user.get("email")
+    email_recebido = login_user.get("email")
+    email_login = email_recebido.strip().lower() if isinstance(email_recebido, str) else email_recebido
     if not email_login:
         return jsonify({"erro":"email vazio"}),400
     senha_login = login_user.get("senha")    
@@ -73,16 +78,20 @@ def login():
         return jsonify({"erro":"senha vazia"}),400
     conn = conectar()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM usuarios WHERE email = %s",(email_login,))
+    cur.execute(
+        "SELECT id, nome, email, senha, is_admin FROM usuarios WHERE LOWER(email) = %s",
+        (email_login,),
+    )
     resultado = cur.fetchone()
     if resultado is  None:
         cur.close()
         conn.close()
-        return jsonify({"erro":"email ou senha invalidos"}),400
+        return jsonify({"erro":"email ou senha invalidos"}),401
     senha_hash = resultado[3]
     
     if bcrypt.checkpw(senha_login.encode("utf-8"),senha_hash.encode("utf-8")):
         payload["id"] = resultado[0]
+        payload["nome"] = resultado[1]
         payload["email"] = resultado[2]
         payload["is_admin"] = resultado[4]
         payload["iat"]= datetime.now(timezone.utc)
@@ -94,4 +103,4 @@ def login():
     else:
         cur.close()
         conn.close()
-        return jsonify({"erro":"email ou senha invalidos"}),400
+        return jsonify({"erro":"email ou senha invalidos"}),401
