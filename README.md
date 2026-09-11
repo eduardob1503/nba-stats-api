@@ -1,5 +1,8 @@
 # 🏀 NBA Stats API
 
+> Para publicar o backend e conectar um PostgreSQL hospedado, consulte
+> [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md).
+
 API RESTful para consulta e gerenciamento de estatísticas de jogadores da NBA, com autenticação JWT, controle de acesso por roles e deploy em produção.
 
 🌐 **Demo ao vivo:** [https://nba-stats-api-kfwn.onrender.com](https://nba-stats-api-kfwn.onrender.com)

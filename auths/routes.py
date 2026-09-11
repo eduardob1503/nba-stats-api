@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from database import conectar
-from config import FIRST_USER_ADMIN, SECRET_KEY
+from config import ADMIN_EMAILS, FIRST_USER_ADMIN, SECRET_KEY
 from middlewares.auth import admin_required, login_required
 from datetime import timedelta,timezone,datetime
 import bcrypt
@@ -55,8 +55,8 @@ def criar_login():
         conn.close()
         return jsonify({"erro": "nome invalido"}),400
         
-    is_admin = False
-    if FIRST_USER_ADMIN:
+    is_admin = email in ADMIN_EMAILS
+    if FIRST_USER_ADMIN and not is_admin:
         cur.execute("SELECT NOT EXISTS (SELECT 1 FROM usuarios)")
         is_admin = bool(cur.fetchone()[0])
 

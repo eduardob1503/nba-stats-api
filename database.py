@@ -1,15 +1,16 @@
 import psycopg2
 import os
 from dotenv import load_dotenv
+from config import ENV
 
 load_dotenv()
 
 def conectar():
-    ENV = os.getenv("ENV")
     DATABASE_URL = os.getenv("DATABASE_URL")
-    if ENV == "production":
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        return conn
-    else:
-        conn = psycopg2.connect(DATABASE_URL)
-        return conn
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL não configurada")
+
+    opcoes = {"connect_timeout": 10, "application_name": "nba-props-api"}
+    if ENV == "production" and "sslmode=" not in DATABASE_URL:
+        opcoes["sslmode"] = "require"
+    return psycopg2.connect(DATABASE_URL, **opcoes)

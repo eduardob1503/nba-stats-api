@@ -3,15 +3,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+ENV = os.getenv("ENV", "development").strip().lower()
 SECRET_KEY = os.getenv("SECRET_KEY")
+
+
+def _variavel_booleana(nome, padrao="false"):
+    return os.getenv(nome, padrao).strip().lower() in {"1", "true", "yes", "on"}
 
 # Facilita o primeiro acesso ao painel administrativo em uma instalação local.
 # Deve permanecer desativado em produção.
-FIRST_USER_ADMIN = os.getenv("FIRST_USER_ADMIN", "false").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
+FIRST_USER_ADMIN = ENV != "production" and _variavel_booleana("FIRST_USER_ADMIN")
+AUTO_MIGRATE = _variavel_booleana("AUTO_MIGRATE")
+ADMIN_EMAILS = {
+    email.strip().lower()
+    for email in os.getenv("ADMIN_EMAILS", "").split(",")
+    if email.strip()
 }
 
 _cors_padrao = ",".join(

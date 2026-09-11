@@ -34,6 +34,31 @@ class AuthRoutesTest(unittest.TestCase):
         self.assertTrue(comando_insert.args[1][-1])
         conn.commit.assert_called_once()
 
+    @patch("auths.routes.criptografar_senha", return_value="senha-hash")
+    @patch("auths.routes.FIRST_USER_ADMIN", False)
+    @patch("auths.routes.ADMIN_EMAILS", {"dono@example.com"})
+    @patch("auths.routes.conectar")
+    def test_email_configurado_recebe_admin_em_producao(self, conectar, _criptografar):
+        conn = Mock()
+        cursor = Mock()
+        cursor.fetchone.return_value = None
+        conn.cursor.return_value = cursor
+        conectar.return_value = conn
+
+        resposta = self.client.post(
+            "/cadastro",
+            json={
+                "nome": "Dono",
+                "email": "Dono@Example.com",
+                "senha": "senha-segura",
+            },
+        )
+
+        self.assertEqual(resposta.status_code, 201)
+        comando_insert = cursor.execute.call_args_list[-1]
+        self.assertEqual(comando_insert.args[1][1], "dono@example.com")
+        self.assertTrue(comando_insert.args[1][-1])
+
 
 if __name__ == "__main__":
     unittest.main()
