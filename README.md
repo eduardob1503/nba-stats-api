@@ -86,8 +86,9 @@ cp .env.example .env
 DATABASE_URL=postgresql://postgres:sua_senha@localhost:5432/nba
 SECRET_KEY=sua_chave_secreta_aqui
 ENV=development
+FIRST_USER_ADMIN=false
 NBA_API_TIMEOUT=20
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080
 ```
 
 Gere uma SECRET_KEY segura com:
@@ -137,6 +138,10 @@ psql "$DATABASE_URL" -f migrations/002_seed_players.sql
 
 `CORS_ORIGINS` recebe uma lista separada por vírgulas. Ao publicar o frontend,
 adicione também a URL HTTPS dele nessa variável.
+
+Em desenvolvimento local, defina `FIRST_USER_ADMIN=true` para que o primeiro
+cadastro receba acesso ao painel administrativo. Mantenha essa opção como
+`false` em produção.
 
 Para promover um usuário a admin:
 ```sql

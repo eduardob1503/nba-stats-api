@@ -17,7 +17,7 @@ class AppIntegrationTests(unittest.TestCase):
         resposta = self.client.options(
             "/jogadores",
             headers={
-                "Origin": "http://localhost:5173",
+                "Origin": "http://localhost:8080",
                 "Access-Control-Request-Method": "GET",
                 "Access-Control-Request-Headers": "authorization",
             },
@@ -26,7 +26,7 @@ class AppIntegrationTests(unittest.TestCase):
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(
             resposta.headers.get("Access-Control-Allow-Origin"),
-            "http://localhost:5173",
+            "http://localhost:8080",
         )
         self.assertIn("Authorization", resposta.headers.get("Access-Control-Allow-Headers", ""))
 

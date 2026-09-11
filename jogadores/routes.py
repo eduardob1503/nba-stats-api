@@ -267,8 +267,8 @@ def adicionar_jogador():
             cur.close()
             conn.close()
             return jsonify({"erro": "sem nome"}),400
-        nome = nome.lower() 
-        partes = nome.split()
+        nome = " ".join(nome.split())
+        partes = nome.lower().split()
         if len(partes)<2:
             cur.close()
             conn.close()
@@ -277,7 +277,6 @@ def adicionar_jogador():
         primeiro = partes[0]
         indice = 1
         code_jogador = sobrenome[0:5]+primeiro[0:2]+"0"+str(indice)
-        novo_jogador["code"] = code_jogador
         cur.execute("SELECT 1 FROM jogadores where code_jogador = %s",(code_jogador,))
         resultado = cur.fetchone()
         while resultado is not None:
@@ -285,9 +284,11 @@ def adicionar_jogador():
             code_jogador = sobrenome[0:5]+primeiro[0:2]+"0"+str(indice)
             cur.execute("SELECT 1 FROM jogadores where code_jogador = %s",(code_jogador,))
             resultado = cur.fetchone()
+        novo_jogador["id"] = code_jogador
         novo_jogador["code"] = code_jogador
         cur.execute("INSERT INTO jogadores(code_jogador,nome)VALUES(%s,%s)"
-        ,(novo_jogador["code"],novo_jogador["nome"]))
+        ,(novo_jogador["code"],nome))
+        novo_jogador["nome"] = nome
         conn.commit()
         cur.close()
         conn.close()

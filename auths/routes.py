@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from database import conectar
-from config import SECRET_KEY
+from config import FIRST_USER_ADMIN, SECRET_KEY
 from middlewares.auth import admin_required, login_required
 from datetime import timedelta,timezone,datetime
 import bcrypt
@@ -55,12 +55,20 @@ def criar_login():
         conn.close()
         return jsonify({"erro": "nome invalido"}),400
         
+    is_admin = False
+    if FIRST_USER_ADMIN:
+        cur.execute("SELECT NOT EXISTS (SELECT 1 FROM usuarios)")
+        is_admin = bool(cur.fetchone()[0])
+
     senha_crypt = criptografar_senha(senha)
-    cur.execute("INSERT INTO usuarios (nome,email,senha)VALUES(%s,%s,%s)",(nome,email,senha_crypt))
+    cur.execute(
+        "INSERT INTO usuarios (nome,email,senha,is_admin) VALUES(%s,%s,%s,%s)",
+        (nome,email,senha_crypt,is_admin),
+    )
     conn.commit()
     cur.close()
     conn.close()
-    return(jsonify("usuario criado com sucesso")),200
+    return jsonify({"mensagem": "usuario criado com sucesso"}), 201
     
 
 @auth_bp.route('/login',methods=["POST"])

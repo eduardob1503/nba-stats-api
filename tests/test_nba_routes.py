@@ -94,6 +94,24 @@ class NBARoutesTest(unittest.TestCase):
         comandos = [execucao.args[0] for execucao in cursor.execute.call_args_list]
         self.assertTrue(any("ON CONFLICT (id_jogador, game_id)" in sql for sql in comandos))
 
+    @patch("jogadores.routes.conectar")
+    def test_cadastro_de_jogador_retorna_id_compativel_com_frontend(self, conectar):
+        conn = Mock()
+        cursor = Mock()
+        cursor.fetchone.return_value = None
+        conn.cursor.return_value = cursor
+        conectar.return_value = conn
+
+        resposta = self.client.post(
+            "/jogadores",
+            json={"nome": "LeBron James"},
+            headers={"Authorization": f"Bearer {_token(is_admin=True)}"},
+        )
+
+        self.assertEqual(resposta.status_code, 201)
+        self.assertEqual(resposta.json["id"], resposta.json["code"])
+        self.assertEqual(resposta.json["nome"], "LeBron James")
+
 
 if __name__ == "__main__":
     unittest.main()
