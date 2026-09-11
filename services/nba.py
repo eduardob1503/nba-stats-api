@@ -77,6 +77,66 @@ def encontrar_jogador(nome):
     }
 
 
+def encontrar_jogador_por_id(nba_player_id):
+    try:
+        jogador = nba_players.find_player_by_id(int(nba_player_id))
+    except (TypeError, ValueError):
+        jogador = None
+
+    if not jogador:
+        raise JogadorNBAInexistente("jogador da NBA inexistente")
+
+    return {
+        "id": int(jogador["id"]),
+        "nome": jogador["full_name"],
+        "ativo": bool(jogador.get("is_active", False)),
+    }
+
+
+def buscar_jogadores_nba(busca, limite=25):
+    """Pesquisa o catálogo completo da NBA, priorizando as melhores correspondências."""
+    termo = _nome_normalizado(busca or "")
+    if len(termo) < 2:
+        return []
+
+    termos = termo.split()
+    resultados = []
+    for jogador in nba_players.get_players():
+        nome = jogador["full_name"]
+        nome_normalizado = _nome_normalizado(nome)
+        palavras = nome_normalizado.split()
+
+        if not all(any(parte in palavra for palavra in palavras) for parte in termos):
+            continue
+
+        if nome_normalizado == termo:
+            relevancia = 0
+        elif nome_normalizado.startswith(termo):
+            relevancia = 1
+        elif all(any(palavra.startswith(parte) for palavra in palavras) for parte in termos):
+            relevancia = 2
+        else:
+            relevancia = 3
+
+        resultados.append(
+            (
+                relevancia,
+                not bool(jogador.get("is_active", False)),
+                len(nome_normalizado),
+                nome_normalizado,
+                {
+                    "id": f"nba:{int(jogador['id'])}",
+                    "nome": nome,
+                    "nba_player_id": int(jogador["id"]),
+                    "ativo": bool(jogador.get("is_active", False)),
+                },
+            )
+        )
+
+    resultados.sort(key=lambda item: item[:4])
+    return [item[4] for item in resultados[:limite]]
+
+
 def _converter_data(data_texto):
     if not data_texto:
         return None

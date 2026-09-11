@@ -27,7 +27,7 @@ class NBARoutesTest(unittest.TestCase):
     @patch("jogadores.routes.conectar")
     def test_consulta_direta_retorna_estatisticas(self, conectar, buscar_jogos):
         cursor = Mock()
-        cursor.fetchone.return_value = ("jamesle01", "LeBron James")
+        cursor.fetchone.return_value = ("jamesle01", "LeBron James", 2544)
         conectar.return_value.cursor.return_value = cursor
         buscar_jogos.return_value = {
             "jogador": {"id": 2544, "nome": "LeBron James", "ativo": True},
@@ -59,6 +59,21 @@ class NBARoutesTest(unittest.TestCase):
         self.assertEqual(resposta.json["media"], 25)
         self.assertEqual(resposta.json["jogos"], 2)
         self.assertEqual(resposta.json["partidas"][0]["data"], "2025-10-21")
+
+    @patch("jogadores.routes.buscar_jogadores_nba")
+    def test_busca_jogadores_no_catalogo_completo(self, buscar_jogadores):
+        buscar_jogadores.return_value = [
+            {"id": "nba:203999", "nome": "Nikola Jokić", "ativo": True}
+        ]
+
+        resposta = self.client.get(
+            "/jogadores?busca=jokic",
+            headers={"Authorization": f"Bearer {_token()}"},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.json[0]["id"], "nba:203999")
+        buscar_jogadores.assert_called_once_with("jokic")
 
     @patch("jogadores.routes.buscar_jogos")
     @patch("jogadores.routes.conectar")

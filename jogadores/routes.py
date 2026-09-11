@@ -5,7 +5,9 @@ from math import sqrt
 from services.nba import (
     JogadorNBAInexistente,
     NBAIndisponivel,
+    buscar_jogadores_nba,
     buscar_jogos,
+    encontrar_jogador_por_id,
 )
 
 jogadores_bp = Blueprint("jogadores", __name__)
@@ -36,6 +38,10 @@ def _erro_nba(erro):
 @jogadores_bp.route('/jogadores',methods=['GET'])
 @login_required
 def obter_jogadores():
+    busca = (request.args.get("busca") or "").strip()
+    if busca:
+        return jsonify(buscar_jogadores_nba(busca)), 200
+
     conn = conectar()
     cur = conn.cursor()
     jogadores = []
@@ -97,28 +103,38 @@ def obter_dados_nba(code):
     conn = conectar()
     cur = conn.cursor()
     cur.execute(
-        "SELECT code_jogador, nome FROM jogadores WHERE code_jogador = %s",
+        "SELECT code_jogador, nome, nba_player_id FROM jogadores WHERE code_jogador = %s",
         (code,),
     )
     jogador = cur.fetchone()
     cur.close()
     conn.close()
 
-    if jogador is None:
+    jogador_diretorio = None
+    if jogador is None and code.startswith("nba:"):
+        try:
+            jogador_diretorio = encontrar_jogador_por_id(code.removeprefix("nba:"))
+        except JogadorNBAInexistente as erro:
+            return _erro_nba(erro)
+    elif jogador is None:
         return jsonify({"erro": "jogador inexistente"}), 404
+
+    nome = jogador[1] if jogador else jogador_diretorio["nome"]
+    nba_player_id = jogador[2] if jogador else jogador_diretorio["id"]
 
     try:
         resultado = buscar_jogos(
-            jogador[1],
+            nome,
             temporada=request.args.get("temporada"),
             tipo_temporada=request.args.get("tipo", "Regular Season"),
+            nba_player_id=nba_player_id,
         )
     except (ValueError, JogadorNBAInexistente, NBAIndisponivel) as erro:
         return _erro_nba(erro)
 
     pontos = [jogo["pontos"] for jogo in resultado["jogos"]]
     resposta = {
-        "code": jogador[0],
+        "code": jogador[0] if jogador else code,
         "nome": resultado["jogador"]["nome"],
         "nba_player_id": resultado["jogador"]["id"],
         "temporada": resultado["temporada"],

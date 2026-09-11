@@ -5,7 +5,9 @@ from unittest.mock import Mock, patch
 from services.nba import (
     JogadorNBAInexistente,
     buscar_jogos,
+    buscar_jogadores_nba,
     encontrar_jogador,
+    encontrar_jogador_por_id,
     temporada_atual,
     validar_temporada,
 )
@@ -35,6 +37,31 @@ class NBAServiceTest(unittest.TestCase):
     def test_encontrar_jogador_inexistente(self, _get_players):
         with self.assertRaises(JogadorNBAInexistente):
             encontrar_jogador("Jogador Inventado")
+
+    @patch("services.nba.nba_players.get_players")
+    def test_busca_inteligente_ignora_acentos_e_prioriza_ativo(self, get_players):
+        get_players.return_value = [
+            {"id": 1, "full_name": "Nikola Jokić", "is_active": False},
+            {"id": 2, "full_name": "Nikola Jović", "is_active": True},
+            {"id": 3, "full_name": "Johnny Davis", "is_active": True},
+        ]
+
+        jogadores = buscar_jogadores_nba("nik jo")
+
+        self.assertEqual([jogador["id"] for jogador in jogadores], ["nba:2", "nba:1"])
+        self.assertEqual(jogadores[1]["nome"], "Nikola Jokić")
+
+    @patch("services.nba.nba_players.find_player_by_id")
+    def test_encontrar_jogador_por_id(self, find_player_by_id):
+        find_player_by_id.return_value = {
+            "id": 2544,
+            "full_name": "LeBron James",
+            "is_active": True,
+        }
+
+        jogador = encontrar_jogador_por_id("2544")
+
+        self.assertEqual(jogador["nome"], "LeBron James")
 
     @patch("services.nba.playergamelog.PlayerGameLog")
     def test_buscar_jogos_normaliza_e_ordena_resposta(self, player_game_log):

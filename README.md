@@ -169,7 +169,7 @@ Authorization: Bearer <seu_token>
 | Role | Rotas disponíveis |
 |------|------------------|
 | 🔓 Público | `POST /cadastro`, `POST /login` |
-| 🔒 Usuário logado | `GET /jogadores`, `GET /jogadores/:code` |
+| 🔒 Usuário logado | `GET /jogadores`, busca no catálogo da NBA e consultas de partidas |
 | 👑 Admin | Todas as rotas + `POST /jogadores`, `POST /jogadores/:code`, `DELETE /jogadores/:code` |
 
 ---
@@ -185,8 +185,8 @@ Cria um novo usuário.
 // Body
 { "nome": "Eduardo Viana", "email": "eduardo@email.com", "senha": "minhasenha123" }
 
-// Resposta 200
-"usuario criado com sucesso"
+// Resposta 201
+{ "mensagem": "usuario criado com sucesso" }
 ```
 
 #### `POST /login`
@@ -212,6 +212,27 @@ Lista todos os jogadores cadastrados.
 [
   { "id": "jamesle01", "nome": "LeBron James" },
   { "id": "curryst01", "nome": "Stephen Curry" }
+]
+```
+
+Com o parâmetro `busca`, pesquisa o catálogo completo de jogadores ativos e
+históricos da NBA. A busca aceita partes do nome, múltiplos termos e ignora
+acentos. Os jogadores ativos e as correspondências mais próximas aparecem
+primeiro.
+
+```http
+GET /jogadores?busca=jokic
+Authorization: Bearer <token>
+```
+
+```json
+[
+  {
+    "id": "nba:203999",
+    "nome": "Nikola Jokić",
+    "nba_player_id": 203999,
+    "ativo": true
+  }
 ]
 ```
 
@@ -255,9 +276,10 @@ Adiciona registros de pontuação para um jogador.
 ```
 
 #### `GET /jogadores/<code>/nba` — 🔒 Login
-Consulta automaticamente as partidas reais na NBA, sem alterar o banco. A temporada
-é opcional e usa o formato `AAAA-AA`; quando omitida, a API escolhe a temporada mais
-recente.
+Consulta automaticamente as partidas reais na NBA, sem alterar o banco. Aceita
+tanto os códigos cadastrados quanto IDs retornados pela busca (`nba:203999`). A
+temporada é opcional e usa o formato `AAAA-AA`; quando omitida, a API escolhe a
+temporada mais recente.
 
 ```http
 GET /jogadores/jamesle01/nba?temporada=2025-26&tipo=Regular%20Season
