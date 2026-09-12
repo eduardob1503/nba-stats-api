@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from database import conectar
 from middlewares.auth import admin_required, login_required
+from datetime import date
 from math import sqrt
 from services.nba import (
     JogadorNBAInexistente,
@@ -41,19 +42,20 @@ def _buscar_jogos_salvos(nba_player_id, temporada, tipo_temporada):
     conn = conectar()
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                """SELECT j.game_id, j.data_partida, e.nome_jogador, e.adversario,
-                          e.resultado, e.minutos, e.pontos, e.rebotes, e.assistencias,
-                          e.roubos, e.tocos, e.turnovers, e.cestas_3, e.tentativas_3,
-                          e.plus_minus
-                   FROM estatisticas_jogador e
-                   JOIN jogos j ON j.game_id = e.game_id
-                   WHERE e.nba_player_id = %s
-                     AND j.temporada = %s
-                     AND j.tipo_temporada = %s
-                   ORDER BY j.data_partida DESC, j.game_id DESC""",
-                (nba_player_id, temporada, tipo_temporada),
-            )
+            consulta = """SELECT j.game_id, j.data_partida, e.nome_jogador, e.adversario,
+                                 e.resultado, e.minutos, e.pontos, e.rebotes, e.assistencias,
+                                 e.roubos, e.tocos, e.turnovers, e.cestas_3, e.tentativas_3,
+                                 e.plus_minus
+                          FROM estatisticas_jogador e
+                          JOIN jogos j ON j.game_id = e.game_id
+                          WHERE e.nba_player_id = %s
+                            AND j.temporada = %s"""
+            parametros = [nba_player_id, temporada]
+            if tipo_temporada != "Todos":
+                consulta += " AND j.tipo_temporada = %s"
+                parametros.append(tipo_temporada)
+            consulta += " ORDER BY j.data_partida DESC, j.game_id DESC"
+            cur.execute(consulta, parametros)
             linhas = cur.fetchall()
     except Exception:
         conn.rollback()
@@ -178,7 +180,9 @@ def obter_dados_nba(code):
     nba_player_id = jogador[2] if jogador else jogador_diretorio["id"]
 
     temporada = request.args.get("temporada") or NBA_SYNC_SEASON
-    tipo_temporada = request.args.get("tipo", "Regular Season")
+    tipo_temporada = request.args.get("tipo", "Todos")
+    if tipo_temporada not in {"Todos", "Regular Season", "Playoffs"}:
+        return jsonify({"erro": "tipo deve ser Todos, Regular Season ou Playoffs"}), 400
     resultado = None
     if nba_player_id:
         resultado = _buscar_jogos_salvos(nba_player_id, temporada, tipo_temporada)
@@ -190,12 +194,28 @@ def obter_dados_nba(code):
                 "temporada": temporada,
             }), 404
         try:
-            resultado = buscar_jogos(
-                nome,
-                temporada=temporada,
-                tipo_temporada=tipo_temporada,
-                nba_player_id=nba_player_id,
+            tipos_consulta = (
+                ("Regular Season", "Playoffs")
+                if tipo_temporada == "Todos"
+                else (tipo_temporada,)
             )
+            resultados = [
+                buscar_jogos(
+                    nome,
+                    temporada=temporada,
+                    tipo_temporada=tipo,
+                    nba_player_id=nba_player_id,
+                )
+                for tipo in tipos_consulta
+            ]
+            resultado = resultados[0]
+            if len(resultados) > 1:
+                resultado["jogos"] = sorted(
+                    [jogo for item in resultados for jogo in item["jogos"]],
+                    key=lambda jogo: jogo["data"] or date.min,
+                    reverse=True,
+                )
+                resultado["tipo_temporada"] = "Todos"
             resultado["origem"] = "nba_api"
         except (ValueError, JogadorNBAInexistente, NBAIndisponivel) as erro:
             return _erro_nba(erro)

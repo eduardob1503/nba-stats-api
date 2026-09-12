@@ -50,7 +50,7 @@ class NBARoutesTest(unittest.TestCase):
         }
 
         resposta = self.client.get(
-            "/jogadores/jamesle01/nba?temporada=2025-26",
+            "/jogadores/jamesle01/nba?temporada=2025-26&tipo=Regular%20Season",
             headers={"Authorization": f"Bearer {_token()}"},
         )
 
@@ -74,6 +74,39 @@ class NBARoutesTest(unittest.TestCase):
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(resposta.json[0]["id"], "nba:203999")
         buscar_jogadores.assert_called_once_with("jokic")
+
+    @patch("jogadores.routes.buscar_jogos")
+    @patch("jogadores.routes._buscar_jogos_salvos")
+    @patch("jogadores.routes.conectar")
+    def test_consulta_prioriza_temporada_completa_salva(
+        self, conectar, buscar_salvos, buscar_jogos
+    ):
+        cursor = Mock()
+        cursor.fetchone.return_value = ("nba:2544", "LeBron James", 2544)
+        conectar.return_value.cursor.return_value = cursor
+        buscar_salvos.return_value = {
+            "jogador": {"id": 2544, "nome": "LeBron James", "ativo": None},
+            "temporada": "2025-26",
+            "tipo_temporada": "Todos",
+            "origem": "banco",
+            "jogos": [{
+                "game_id": "001",
+                "data": date(2026, 5, 1),
+                "adversario": "LAL vs. GSW",
+                "pontos": 28,
+            }],
+        }
+
+        resposta = self.client.get(
+            "/jogadores/nba:2544/nba?temporada=2025-26",
+            headers={"Authorization": f"Bearer {_token()}"},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.json["origem"], "banco")
+        self.assertEqual(resposta.json["tipo_temporada"], "Todos")
+        buscar_salvos.assert_called_once_with(2544, "2025-26", "Todos")
+        buscar_jogos.assert_not_called()
 
     @patch("jogadores.routes.buscar_jogos")
     @patch("jogadores.routes.conectar")
