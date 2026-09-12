@@ -7,6 +7,11 @@ ENV = os.getenv("ENV", "development").strip().lower()
 SECRET_KEY = os.getenv("SECRET_KEY")
 SYNC_TOKEN = os.getenv("SYNC_TOKEN", "").strip()
 NBA_SYNC_SEASON = os.getenv("NBA_SYNC_SEASON", "2025-26").strip()
+NBA_SYNC_SEASONS = tuple(
+    temporada.strip()
+    for temporada in os.getenv("NBA_SYNC_SEASONS", "2025-26,2026-27").split(",")
+    if temporada.strip()
+)
 
 
 def _variavel_booleana(nome, padrao="false"):

@@ -70,7 +70,28 @@ class SyncRoutesTest(unittest.TestCase):
         )
 
         self.assertEqual(resposta.status_code, 400)
-        self.assertIn("2025-26", resposta.json["erro"])
+        self.assertEqual(
+            resposta.json["temporadas_permitidas"], ["2025-26", "2026-27"]
+        )
+
+    @patch("middlewares.sync.SYNC_TOKEN", "token-de-teste")
+    @patch("sync_data.routes.conectar")
+    def test_status_aceita_nova_temporada_e_tipo(self, conectar):
+        conn = MagicMock()
+        cursor = Mock()
+        cursor.fetchone.return_value = (0, 0, None)
+        conn.cursor.return_value.__enter__.return_value = cursor
+        conectar.return_value = conn
+
+        resposta = self.client.get(
+            "/sync/status?temporada=2026-27&tipo=Regular%20Season",
+            headers={"X-Sync-Token": "token-de-teste"},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.json["temporada"], "2026-27")
+        self.assertEqual(resposta.json["tipo_temporada"], "Regular Season")
+        self.assertIsNone(resposta.json["ultima_partida"])
 
     def test_rejeita_token_invalido(self):
         with patch("middlewares.sync.SYNC_TOKEN", "token-correto"):

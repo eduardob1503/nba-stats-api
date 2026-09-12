@@ -1,4 +1,4 @@
-"""Baixa a temporada 2025-26 no PC e envia os dados para a Oracle."""
+"""Baixa uma temporada permitida no PC e envia os dados para a Oracle."""
 
 import argparse
 import gzip
@@ -13,11 +13,10 @@ from dotenv import load_dotenv
 from nba_api.stats.endpoints import leaguegamelog
 
 
-SEASON = "2025-26"
+SUPPORTED_SEASONS = ("2025-26", "2026-27")
 SEASON_TYPES = ("Regular Season", "Playoffs")
 DEFAULT_API_URL = "https://138-2-244-252.sslip.io"
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_CACHE = ROOT_DIR / "data" / "nba-2025-26.json.gz"
 TOKEN_FILE = ROOT_DIR / ".sync-token"
 
 
@@ -65,16 +64,16 @@ def _normalizar_linha(linha):
     }
 
 
-def baixar_temporada(timeout):
+def baixar_temporada(temporada, timeout):
     tipos = {}
     for tipo in SEASON_TYPES:
-        print(f"Consultando NBA: {SEASON} — {tipo}...")
+        print(f"Consultando NBA: {temporada} — {tipo}...")
         resposta = leaguegamelog.LeagueGameLog(
             counter=0,
             direction="DESC",
             league_id="00",
             player_or_team_abbreviation="P",
-            season=SEASON,
+            season=temporada,
             season_type_all_star=tipo,
             sorter="DATE",
             timeout=timeout,
@@ -89,7 +88,7 @@ def baixar_temporada(timeout):
         print(f"  {len(tipos[tipo])} atuações encontradas.")
 
     return {
-        "season": SEASON,
+        "season": temporada,
         "downloaded_at": datetime.now(timezone.utc).isoformat(),
         "season_types": tipos,
     }
@@ -102,31 +101,65 @@ def salvar_cache(dados, caminho):
     print(f"Cache salvo em: {caminho}")
 
 
-def carregar_cache(caminho):
+def carregar_cache(caminho, temporada):
     if not caminho.exists():
         raise SystemExit(f"Cache não encontrado: {caminho}")
     with gzip.open(caminho, "rt", encoding="utf-8") as arquivo:
         dados = json.load(arquivo)
-    if dados.get("season") != SEASON:
-        raise SystemExit(f"O cache não pertence à temporada {SEASON}.")
+    if dados.get("season") != temporada:
+        raise SystemExit(f"O cache não pertence à temporada {temporada}.")
     return dados
 
 
-def enviar_temporada(dados, api_url, token, batch_size):
+def obter_status(api_url, token, temporada, tipo_temporada=None):
+    parametros = {"temporada": temporada}
+    if tipo_temporada:
+        parametros["tipo"] = tipo_temporada
+    resposta = requests.get(
+        f"{api_url.rstrip('/')}/sync/status",
+        headers={"X-Sync-Token": token},
+        params=parametros,
+        timeout=30,
+    )
+    if not resposta.ok:
+        raise SystemExit(
+            f"Não foi possível consultar o status: HTTP {resposta.status_code} — "
+            f"{resposta.text}"
+        )
+    return resposta.json()
+
+
+def enviar_temporada(dados, api_url, token, batch_size, envio_completo=False):
+    temporada = dados["season"]
     endpoint = f"{api_url.rstrip('/')}/sync/nba"
     headers = {"X-Sync-Token": token, "Content-Type": "application/json"}
     total = 0
 
     for tipo in SEASON_TYPES:
         registros = dados.get("season_types", {}).get(tipo, [])
+        if not envio_completo:
+            status_tipo = obter_status(api_url, token, temporada, tipo)
+            ultima_data = status_tipo.get("ultima_partida")
+            if ultima_data:
+                registros = [
+                    registro
+                    for registro in registros
+                    if registro["game_date"] >= ultima_data
+                ]
+                print(
+                    f"Atualização incremental de {tipo} a partir de {ultima_data}."
+                )
+
         print(f"Enviando {tipo}: {len(registros)} atuações...")
+        if not registros:
+            continue
         for inicio in range(0, len(registros), batch_size):
             lote = registros[inicio : inicio + batch_size]
             resposta = requests.post(
                 endpoint,
                 headers=headers,
                 json={
-                    "season": SEASON,
+                    "season": temporada,
                     "season_type": tipo,
                     "records": lote,
                 },
@@ -140,24 +173,26 @@ def enviar_temporada(dados, api_url, token, batch_size):
             total += len(lote)
             print(f"  {min(inicio + len(lote), len(registros))}/{len(registros)}")
 
-    status = requests.get(
-        f"{api_url.rstrip('/')}/sync/status",
-        headers={"X-Sync-Token": token},
-        timeout=30,
-    )
-    status.raise_for_status()
+    status = obter_status(api_url, token, temporada)
     print(f"Sincronização concluída: {total} atuações enviadas.")
-    print(f"Oracle: {status.json()}")
+    print(f"Oracle: {status}")
 
 
 def main():
     load_dotenv(ROOT_DIR / ".env")
     parser = argparse.ArgumentParser(
-        description="Sincroniza somente a temporada NBA 2025-26 com a Oracle."
+        description="Sincroniza uma temporada NBA permitida com a Oracle."
+    )
+    parser.add_argument(
+        "--season",
+        choices=SUPPORTED_SEASONS,
+        default=os.getenv("NBA_SYNC_SEASON", "2025-26").strip(),
+        help="temporada que será consultada e enviada",
     )
     parser.add_argument("--fetch-only", action="store_true", help="somente baixa e salva")
     parser.add_argument("--upload-only", action="store_true", help="somente envia o cache")
-    parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
+    parser.add_argument("--full", action="store_true", help="reenvia a temporada inteira")
+    parser.add_argument("--cache", type=Path)
     parser.add_argument("--batch-size", type=int, default=400)
     parser.add_argument("--timeout", type=float, default=60)
     args = parser.parse_args()
@@ -166,12 +201,13 @@ def main():
         parser.error("use apenas uma das opções --fetch-only ou --upload-only")
     if not 1 <= args.batch_size <= 500:
         parser.error("--batch-size deve ficar entre 1 e 500")
+    cache = args.cache or ROOT_DIR / "data" / f"nba-{args.season}.json.gz"
 
     if args.upload_only:
-        dados = carregar_cache(args.cache)
+        dados = carregar_cache(cache, args.season)
     else:
-        dados = baixar_temporada(args.timeout)
-        salvar_cache(dados, args.cache)
+        dados = baixar_temporada(args.season, args.timeout)
+        salvar_cache(dados, cache)
 
     if args.fetch_only:
         return
@@ -182,7 +218,7 @@ def main():
     if not token:
         raise SystemExit("Defina SYNC_TOKEN no .env ou crie o arquivo .sync-token.")
     api_url = os.getenv("SYNC_API_URL", DEFAULT_API_URL).strip()
-    enviar_temporada(dados, api_url, token, args.batch_size)
+    enviar_temporada(dados, api_url, token, args.batch_size, args.full)
 
 
 if __name__ == "__main__":

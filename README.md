@@ -342,12 +342,11 @@ Remove o jogador e todos os seus registros de pontuação.
 
 ---
 
-## Sincronizar a temporada 2025-26 pelo PC
+## Sincronizar as temporadas pelo PC
 
 O servidor de produção lê os dados salvos no PostgreSQL e não consulta a NBA
-diretamente. O coletor local baixa somente a última temporada concluída
-(`2025-26`), incluindo temporada regular e playoffs, e guarda uma cópia
-compactada em `data/nba-2025-26.json.gz`.
+diretamente. O coletor aceita somente `2025-26` e `2026-27`, inclui temporada
+regular e playoffs e guarda uma cópia compactada separada para cada temporada.
 
 O token pode ficar no arquivo privado `.sync-token` ou ser configurado no `.env`
 local com o mesmo valor instalado na Oracle:
@@ -361,7 +360,11 @@ NBA_SYNC_SEASON=2025-26
 Para baixar e enviar em um único comando:
 
 ```powershell
+# Temporada anterior
 .\.venv\Scripts\python.exe scripts\sync_last_season.py
+
+# Nova temporada
+.\.venv\Scripts\python.exe scripts\sync_last_season.py --season 2026-27
 ```
 
 Também é possível separar as etapas:
@@ -374,7 +377,11 @@ Também é possível separar as etapas:
 .\.venv\Scripts\python.exe scripts\sync_last_season.py --upload-only
 ```
 
-O envio usa lotes e `upsert`, portanto repetir o comando não duplica partidas.
+Por padrão, o coletor consulta o último dia já salvo e envia somente as atuações
+recentes. Assim, o comando pode ser executado depois de cada noite de jogos. Use
+`--full` apenas quando precisar reenviar toda a temporada. O `upsert` impede
+duplicação de partidas em ambos os modos.
+
 A porta do PostgreSQL permanece fechada; somente o endpoint HTTPS protegido pelo
 token recebe os dados.
 

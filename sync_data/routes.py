@@ -3,7 +3,7 @@ from datetime import date
 from flask import Blueprint, jsonify, request
 from psycopg2.extras import execute_values
 
-from config import NBA_SYNC_SEASON
+from config import NBA_SYNC_SEASON, NBA_SYNC_SEASONS
 from database import conectar
 from middlewares.sync import sync_token_required
 
@@ -89,9 +89,10 @@ def receber_dados_nba():
     tipo_temporada = str(dados.get("season_type") or "").strip()
     registros_recebidos = dados.get("records")
 
-    if temporada != NBA_SYNC_SEASON:
+    if temporada not in NBA_SYNC_SEASONS:
         return jsonify({
-            "erro": f"esta instalação aceita somente a temporada {NBA_SYNC_SEASON}"
+            "erro": "temporada não permitida",
+            "temporadas_permitidas": list(NBA_SYNC_SEASONS),
         }), 400
     if tipo_temporada not in TIPOS_PERMITIDOS:
         return jsonify({"erro": "season_type deve ser Regular Season ou Playoffs"}), 400
@@ -219,22 +220,37 @@ def receber_dados_nba():
 @sync_bp.get("/status")
 @sync_token_required
 def status_sincronizacao():
+    temporada = (request.args.get("temporada") or NBA_SYNC_SEASON).strip()
+    tipo_temporada = (request.args.get("tipo") or "").strip()
+
+    if temporada not in NBA_SYNC_SEASONS:
+        return jsonify({
+            "erro": "temporada não permitida",
+            "temporadas_permitidas": list(NBA_SYNC_SEASONS),
+        }), 400
+    if tipo_temporada and tipo_temporada not in TIPOS_PERMITIDOS:
+        return jsonify({"erro": "tipo deve ser Regular Season ou Playoffs"}), 400
+
     conn = conectar()
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                """SELECT COUNT(*), COUNT(DISTINCT nba_player_id), MAX(j.data_partida)
-                   FROM estatisticas_jogador e
-                   JOIN jogos j ON j.game_id = e.game_id
-                   WHERE j.temporada = %s""",
-                (NBA_SYNC_SEASON,),
-            )
+            consulta = """SELECT COUNT(*), COUNT(DISTINCT nba_player_id),
+                                  MAX(j.data_partida)
+                           FROM estatisticas_jogador e
+                           JOIN jogos j ON j.game_id = e.game_id
+                           WHERE j.temporada = %s"""
+            parametros = [temporada]
+            if tipo_temporada:
+                consulta += " AND j.tipo_temporada = %s"
+                parametros.append(tipo_temporada)
+            cur.execute(consulta, parametros)
             registros, jogadores, ultima_data = cur.fetchone()
     finally:
         conn.close()
 
     return jsonify({
-        "temporada": NBA_SYNC_SEASON,
+        "temporada": temporada,
+        "tipo_temporada": tipo_temporada or "Todos",
         "registros": registros,
         "jogadores": jogadores,
         "ultima_partida": ultima_data.isoformat() if ultima_data else None,

@@ -29,7 +29,8 @@ chmod 600 "${env_tmp}"
   printf '%s\n' 'FIRST_USER_ADMIN=false'
   printf '%s\n' 'NBA_API_TIMEOUT=20'
   printf '%s\n' 'NBA_SYNC_SEASON=2025-26'
-  printf '%s\n' 'CORS_ORIGINS=https://nba-prop-insights-sfwg.vercel.app,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173'
+  printf '%s\n' 'NBA_SYNC_SEASONS=2025-26,2026-27'
+  printf '%s\n' 'CORS_ORIGINS=https://nba-prop-insights.vercel.app,https://nba-prop-insights-sfwg.vercel.app,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173'
 } > "${env_tmp}"
 
 sudo install -o root -g root -m 600 "${env_tmp}" /etc/nba-stats-api.env

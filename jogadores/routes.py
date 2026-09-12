@@ -10,7 +10,7 @@ from services.nba import (
     buscar_jogos,
     encontrar_jogador_por_id,
 )
-from config import ENV, NBA_SYNC_SEASON
+from config import ENV, NBA_SYNC_SEASON, NBA_SYNC_SEASONS
 
 jogadores_bp = Blueprint("jogadores", __name__)
 
@@ -157,6 +157,16 @@ def obter_por_id(code):
 @jogadores_bp.route('/jogadores/<code>/nba', methods=['GET'])
 @login_required
 def obter_dados_nba(code):
+    temporada = request.args.get("temporada") or NBA_SYNC_SEASON
+    if temporada not in NBA_SYNC_SEASONS:
+        return jsonify({
+            "erro": "temporada não permitida",
+            "temporadas_permitidas": list(NBA_SYNC_SEASONS),
+        }), 400
+    tipo_temporada = request.args.get("tipo", "Todos")
+    if tipo_temporada not in {"Todos", "Regular Season", "Playoffs"}:
+        return jsonify({"erro": "tipo deve ser Todos, Regular Season ou Playoffs"}), 400
+
     conn = conectar()
     cur = conn.cursor()
     cur.execute(
@@ -179,10 +189,6 @@ def obter_dados_nba(code):
     nome = jogador[1] if jogador else jogador_diretorio["nome"]
     nba_player_id = jogador[2] if jogador else jogador_diretorio["id"]
 
-    temporada = request.args.get("temporada") or NBA_SYNC_SEASON
-    tipo_temporada = request.args.get("tipo", "Todos")
-    if tipo_temporada not in {"Todos", "Regular Season", "Playoffs"}:
-        return jsonify({"erro": "tipo deve ser Todos, Regular Season ou Playoffs"}), 400
     resultado = None
     if nba_player_id:
         resultado = _buscar_jogos_salvos(nba_player_id, temporada, tipo_temporada)
