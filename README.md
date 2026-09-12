@@ -35,7 +35,8 @@ nba-stats-api/
 │   ├── 000_base_schema.sql # Criação idempotente das tabelas base
 │   ├── 001_nba_sync.sql    # Campos e índice para sincronização sem duplicatas
 │   ├── 002_seed_players.sql # Jogadores iniciais exibidos no frontend
-│   └── 003_player_game_stats.sql # Jogos e estatísticas completas por jogador
+│   ├── 003_player_game_stats.sql # Jogos e estatísticas completas por jogador
+│   └── 004_remove_legacy_seed_duplicates.sql # Remove os antigos seeds duplicados
 ├── Procfile                # Comando de start para o Render (gunicorn)
 ├── requirements.txt        # Dependências do projeto
 ├── .env.example            # Modelo de variáveis de ambiente
@@ -139,6 +140,7 @@ psql "$DATABASE_URL" -f migrations/000_base_schema.sql
 psql "$DATABASE_URL" -f migrations/001_nba_sync.sql
 psql "$DATABASE_URL" -f migrations/002_seed_players.sql
 psql "$DATABASE_URL" -f migrations/003_player_game_stats.sql
+psql "$DATABASE_URL" -f migrations/004_remove_legacy_seed_duplicates.sql
 ```
 
 `CORS_ORIGINS` recebe uma lista separada por vírgulas. Ao publicar o frontend,
