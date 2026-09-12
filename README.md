@@ -34,7 +34,8 @@ nba-stats-api/
 ├── migrations/
 │   ├── 000_base_schema.sql # Criação idempotente das tabelas base
 │   ├── 001_nba_sync.sql    # Campos e índice para sincronização sem duplicatas
-│   └── 002_seed_players.sql# Jogadores iniciais exibidos no frontend
+│   ├── 002_seed_players.sql # Jogadores iniciais exibidos no frontend
+│   └── 003_player_game_stats.sql # Jogos e estatísticas completas por jogador
 ├── Procfile                # Comando de start para o Render (gunicorn)
 ├── requirements.txt        # Dependências do projeto
 ├── .env.example            # Modelo de variáveis de ambiente
@@ -137,6 +138,7 @@ As migrações são idempotentes e podem ser executadas em sequência:
 psql "$DATABASE_URL" -f migrations/000_base_schema.sql
 psql "$DATABASE_URL" -f migrations/001_nba_sync.sql
 psql "$DATABASE_URL" -f migrations/002_seed_players.sql
+psql "$DATABASE_URL" -f migrations/003_player_game_stats.sql
 ```
 
 `CORS_ORIGINS` recebe uma lista separada por vírgulas. Ao publicar o frontend,
@@ -335,6 +337,43 @@ Remove o jogador e todos os seus registros de pontuação.
 // Resposta 200
 { "mensagem": "jogador deletado" }
 ```
+
+---
+
+## Sincronizar a temporada 2025-26 pelo PC
+
+O servidor de produção lê os dados salvos no PostgreSQL e não consulta a NBA
+diretamente. O coletor local baixa somente a última temporada concluída
+(`2025-26`), incluindo temporada regular e playoffs, e guarda uma cópia
+compactada em `data/nba-2025-26.json.gz`.
+
+Configure no `.env` local o mesmo `SYNC_TOKEN` instalado na Oracle:
+
+```env
+SYNC_API_URL=https://138-2-244-252.sslip.io
+SYNC_TOKEN=seu_token_privado
+NBA_SYNC_SEASON=2025-26
+```
+
+Para baixar e enviar em um único comando:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\sync_last_season.py
+```
+
+Também é possível separar as etapas:
+
+```powershell
+# Baixa da NBA e salva no PC
+.\.venv\Scripts\python.exe scripts\sync_last_season.py --fetch-only
+
+# Envia o arquivo já salvo sem consultar novamente a NBA
+.\.venv\Scripts\python.exe scripts\sync_last_season.py --upload-only
+```
+
+O envio usa lotes e `upsert`, portanto repetir o comando não duplica partidas.
+A porta do PostgreSQL permanece fechada; somente o endpoint HTTPS protegido pelo
+token recebe os dados.
 
 ---
 

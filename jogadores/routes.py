@@ -9,6 +9,7 @@ from services.nba import (
     buscar_jogos,
     encontrar_jogador_por_id,
 )
+from config import ENV, NBA_SYNC_SEASON
 
 jogadores_bp = Blueprint("jogadores", __name__)
 
@@ -34,6 +35,60 @@ def _erro_nba(erro):
     if isinstance(erro, JogadorNBAInexistente):
         return jsonify({"erro": str(erro)}), 404
     return jsonify({"erro": str(erro)}), 503
+
+
+def _buscar_jogos_salvos(nba_player_id, temporada, tipo_temporada):
+    conn = conectar()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT j.game_id, j.data_partida, e.nome_jogador, e.adversario,
+                          e.resultado, e.minutos, e.pontos, e.rebotes, e.assistencias,
+                          e.roubos, e.tocos, e.turnovers, e.cestas_3, e.tentativas_3,
+                          e.plus_minus
+                   FROM estatisticas_jogador e
+                   JOIN jogos j ON j.game_id = e.game_id
+                   WHERE e.nba_player_id = %s
+                     AND j.temporada = %s
+                     AND j.tipo_temporada = %s
+                   ORDER BY j.data_partida DESC, j.game_id DESC""",
+                (nba_player_id, temporada, tipo_temporada),
+            )
+            linhas = cur.fetchall()
+    except Exception:
+        conn.rollback()
+        return None
+    finally:
+        conn.close()
+
+    if not linhas:
+        return None
+
+    return {
+        "jogador": {"id": int(nba_player_id), "nome": linhas[0][2], "ativo": None},
+        "temporada": temporada,
+        "tipo_temporada": tipo_temporada,
+        "origem": "banco",
+        "jogos": [
+            {
+                "game_id": linha[0],
+                "data": linha[1],
+                "adversario": linha[3],
+                "resultado": linha[4],
+                "minutos": float(linha[5]) if linha[5] is not None else None,
+                "pontos": linha[6],
+                "rebotes": linha[7],
+                "assistencias": linha[8],
+                "roubos": linha[9],
+                "tocos": linha[10],
+                "turnovers": linha[11],
+                "cestas_3": linha[12],
+                "tentativas_3": linha[13],
+                "plus_minus": float(linha[14]) if linha[14] is not None else None,
+            }
+            for linha in linhas
+        ],
+    }
 
 @jogadores_bp.route('/jogadores',methods=['GET'])
 @login_required
@@ -122,15 +177,28 @@ def obter_dados_nba(code):
     nome = jogador[1] if jogador else jogador_diretorio["nome"]
     nba_player_id = jogador[2] if jogador else jogador_diretorio["id"]
 
-    try:
-        resultado = buscar_jogos(
-            nome,
-            temporada=request.args.get("temporada"),
-            tipo_temporada=request.args.get("tipo", "Regular Season"),
-            nba_player_id=nba_player_id,
-        )
-    except (ValueError, JogadorNBAInexistente, NBAIndisponivel) as erro:
-        return _erro_nba(erro)
+    temporada = request.args.get("temporada") or NBA_SYNC_SEASON
+    tipo_temporada = request.args.get("tipo", "Regular Season")
+    resultado = None
+    if nba_player_id:
+        resultado = _buscar_jogos_salvos(nba_player_id, temporada, tipo_temporada)
+
+    if resultado is None:
+        if ENV == "production":
+            return jsonify({
+                "erro": "estatísticas ainda não sincronizadas para esse jogador",
+                "temporada": temporada,
+            }), 404
+        try:
+            resultado = buscar_jogos(
+                nome,
+                temporada=temporada,
+                tipo_temporada=tipo_temporada,
+                nba_player_id=nba_player_id,
+            )
+            resultado["origem"] = "nba_api"
+        except (ValueError, JogadorNBAInexistente, NBAIndisponivel) as erro:
+            return _erro_nba(erro)
 
     pontos = [jogo["pontos"] for jogo in resultado["jogos"]]
     resposta = {
@@ -139,6 +207,7 @@ def obter_dados_nba(code):
         "nba_player_id": resultado["jogador"]["id"],
         "temporada": resultado["temporada"],
         "tipo_temporada": resultado["tipo_temporada"],
+        "origem": resultado.get("origem", "nba_api"),
         "pontos": pontos,
         "partidas": [
             {

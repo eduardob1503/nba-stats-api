@@ -3,6 +3,7 @@ from flask import Flask, jsonify, request
 from auths.routes import auth_bp
 from config import AUTO_MIGRATE, CORS_ORIGINS
 from jogadores.routes import jogadores_bp
+from sync_data.routes import sync_bp
 
 
 if AUTO_MIGRATE:
@@ -14,6 +15,7 @@ if AUTO_MIGRATE:
 app = Flask(__name__)
 app.register_blueprint(jogadores_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(sync_bp)
 
 
 @app.after_request

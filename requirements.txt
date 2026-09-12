@@ -6,3 +6,4 @@ python-dotenv==1.1.0
 bcrypt==5.0.0
 gunicorn==25.3.0
 nba_api==1.11.4
+requests==2.32.5

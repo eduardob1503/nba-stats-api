@@ -5,6 +5,8 @@ load_dotenv()
 
 ENV = os.getenv("ENV", "development").strip().lower()
 SECRET_KEY = os.getenv("SECRET_KEY")
+SYNC_TOKEN = os.getenv("SYNC_TOKEN", "").strip()
+NBA_SYNC_SEASON = os.getenv("NBA_SYNC_SEASON", "2025-26").strip()
 
 
 def _variavel_booleana(nome, padrao="false"):
