@@ -18,6 +18,7 @@ SEASON_TYPES = ("Regular Season", "Playoffs")
 DEFAULT_API_URL = "https://138-2-244-252.sslip.io"
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CACHE = ROOT_DIR / "data" / "nba-2025-26.json.gz"
+TOKEN_FILE = ROOT_DIR / ".sync-token"
 
 
 def _primitive(value):
@@ -176,8 +177,10 @@ def main():
         return
 
     token = os.getenv("SYNC_TOKEN", "").strip()
+    if not token and TOKEN_FILE.exists():
+        token = TOKEN_FILE.read_text(encoding="utf-8").strip()
     if not token:
-        raise SystemExit("Defina SYNC_TOKEN no arquivo .env antes de enviar.")
+        raise SystemExit("Defina SYNC_TOKEN no .env ou crie o arquivo .sync-token.")
     api_url = os.getenv("SYNC_API_URL", DEFAULT_API_URL).strip()
     enviar_temporada(dados, api_url, token, args.batch_size)
 

@@ -347,7 +347,8 @@ diretamente. O coletor local baixa somente a última temporada concluída
 (`2025-26`), incluindo temporada regular e playoffs, e guarda uma cópia
 compactada em `data/nba-2025-26.json.gz`.
 
-Configure no `.env` local o mesmo `SYNC_TOKEN` instalado na Oracle:
+O token pode ficar no arquivo privado `.sync-token` ou ser configurado no `.env`
+local com o mesmo valor instalado na Oracle:
 
 ```env
 SYNC_API_URL=https://138-2-244-252.sslip.io
