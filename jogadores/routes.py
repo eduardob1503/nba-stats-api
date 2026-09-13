@@ -3,6 +3,7 @@ from database import conectar
 from middlewares.auth import admin_required, login_required
 from datetime import date
 from math import sqrt
+from services.analises import adicionar_compostos, medias_por_mercado, valor_mercado
 from services.nba import (
     JogadorNBAInexistente,
     NBAIndisponivel,
@@ -13,16 +14,6 @@ from services.nba import (
 from config import ENV, NBA_SYNC_SEASON, NBA_SYNC_SEASONS
 
 jogadores_bp = Blueprint("jogadores", __name__)
-MERCADOS_COMPONENTES = {
-    "pontos": ("pontos",),
-    "assistencias": ("assistencias",),
-    "rebotes": ("rebotes",),
-    "cestas_3": ("cestas_3",),
-    "tentativas_3": ("tentativas_3",),
-    "pa": ("pontos", "assistencias"),
-    "ar": ("assistencias", "rebotes"),
-    "par": ("pontos", "assistencias", "rebotes"),
-}
 
 
 def _resumo_estatistico(pontos):
@@ -38,29 +29,6 @@ def _resumo_estatistico(pontos):
         "minimo": min(pontos),
         "desvio_padrao": sqrt(variancia),
     }
-
-
-def _valor_valido(valor):
-    return isinstance(valor, (int, float)) and not isinstance(valor, bool)
-
-
-def adicionar_mercados_calculados(jogo):
-    jogo = dict(jogo)
-    for mercado, componentes in MERCADOS_COMPONENTES.items():
-        if len(componentes) == 1:
-            continue
-        valores = [jogo.get(componente) for componente in componentes]
-        if all(_valor_valido(valor) for valor in valores):
-            jogo[mercado] = sum(valores)
-    return jogo
-
-
-def valores_do_mercado(jogos, mercado):
-    return [
-        jogo[mercado]
-        for jogo in jogos
-        if _valor_valido(jogo.get(mercado))
-    ]
 
 
 def _erro_nba(erro):
@@ -260,15 +228,15 @@ def obter_dados_nba(code):
             return _erro_nba(erro)
 
     jogos = [
-        adicionar_mercados_calculados(jogo)
+        adicionar_compostos(jogo)
         for jogo in resultado["jogos"]
     ]
-    pontos = valores_do_mercado(jogos, "pontos")
-    medias = {}
-    for mercado in MERCADOS_COMPONENTES:
-        valores = valores_do_mercado(jogos, mercado)
-        if valores:
-            medias[mercado] = sum(valores) / len(valores)
+    pontos = [
+        int(valor) if valor == valor.to_integral() else float(valor)
+        for jogo in jogos
+        if (valor := valor_mercado(jogo, "pontos")) is not None
+    ]
+    medias = medias_por_mercado(jogos)
     resposta = {
         "code": jogador[0] if jogador else code,
         "nome": resultado["jogador"]["nome"],

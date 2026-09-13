@@ -1,5 +1,6 @@
 #objetivo - Criar uma api de disponibilize a consulta e retorne stats do jogador
 from flask import Flask, jsonify, request
+from analises.routes import analises_bp
 from auths.routes import auth_bp
 from config import AUTO_MIGRATE, CORS_ORIGINS
 from jogadores.routes import jogadores_bp
@@ -13,6 +14,7 @@ if AUTO_MIGRATE:
 
 
 app = Flask(__name__)
+app.register_blueprint(analises_bp)
 app.register_blueprint(jogadores_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(sync_bp)
