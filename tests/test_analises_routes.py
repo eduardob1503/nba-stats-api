@@ -117,6 +117,28 @@ class AnalisesRoutesTest(unittest.TestCase):
         self.assertEqual(cursor.execute.call_args.args[1], (99, 7))
 
     @patch("analises.routes.conectar")
+    def test_abre_analise_do_proprio_usuario(self, conectar):
+        agora = datetime(2026, 9, 13, 12, 0, tzinfo=timezone.utc)
+        linha = (
+            31, 7, "nba:2544", 2544, "LeBron James", "2025-26", "Todos",
+            "assistencias", "5", Decimal("7.50"), Decimal("1.850"), "over",
+            {"media": 8, "acertos": 3, "partidas": []}, agora, agora,
+        )
+        conn = MagicMock()
+        cursor = Mock()
+        cursor.fetchone.return_value = linha
+        conn.cursor.return_value.__enter__.return_value = cursor
+        conectar.return_value = conn
+
+        resposta = self.client.get("/analises/31", headers=self.headers)
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.json["id"], 31)
+        self.assertEqual(resposta.json["mercado"], "assistencias")
+        self.assertEqual(resposta.json["acertos"], 3)
+        self.assertEqual(cursor.execute.call_args.args[1], (31, 7))
+
+    @patch("analises.routes.conectar")
     def test_apaga_somente_analise_do_usuario(self, conectar):
         conn = MagicMock()
         cursor = Mock()
@@ -147,6 +169,8 @@ class AnalisesRoutesTest(unittest.TestCase):
             ({"linha": -1}, "linha invalida"),
             ({"odd": 1}, "odd invalida"),
             ({"quantidade_jogos": 3}, "quantidade de jogos invalida"),
+            ({"lado": "acima"}, "lado invalido"),
+            ({"tipo_temporada": "Pre Season"}, "tipo de temporada invalido"),
         )
         for alteracao, mensagem in casos:
             with self.subTest(alteracao=alteracao):

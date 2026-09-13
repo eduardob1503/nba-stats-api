@@ -58,6 +58,10 @@ class AnalisesServiceTest(unittest.TestCase):
         over = calcular_analise(self.partidas, "pontos", "todos", 10, "over")
         under = calcular_analise(self.partidas, "pontos", "todos", 10, "under")
 
+        self.assertEqual(over["media"], 9)
+        self.assertEqual(over["mediana"], 9)
+        self.assertEqual(over["maior_valor"], 10)
+        self.assertEqual(over["menor_valor"], 8)
         self.assertEqual((over["acertos"], over["erros"], over["pushes"]), (0, 1, 1))
         self.assertEqual(over["percentual_acerto"], 0)
         self.assertEqual((under["acertos"], under["erros"], under["pushes"]), (1, 0, 1))

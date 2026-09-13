@@ -38,6 +38,22 @@ class AppIntegrationTests(unittest.TestCase):
 
         self.assertIsNone(resposta.headers.get("Access-Control-Allow-Origin"))
 
+    def test_cors_libera_frontend_oficial(self):
+        resposta = self.client.options(
+            "/analises",
+            headers={
+                "Origin": "https://nba-prop-insights.vercel.app",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(
+            resposta.headers.get("Access-Control-Allow-Origin"),
+            "https://nba-prop-insights.vercel.app",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

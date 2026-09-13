@@ -154,6 +154,25 @@ class NBARoutesTest(unittest.TestCase):
         self.assertEqual(resposta.json["medias"]["cestas_3"], 0)
         self.assertNotIn("pa", resposta.json["medias"])
 
+    @patch("jogadores.routes.ENV", "production")
+    @patch("jogadores.routes._buscar_jogos_salvos", return_value=None)
+    @patch("jogadores.routes.conectar")
+    def test_temporada_nova_sem_jogos_retorna_mensagem_amigavel(
+        self, conectar, _buscar_salvos
+    ):
+        cursor = Mock()
+        cursor.fetchone.return_value = ("nba:2544", "LeBron James", 2544)
+        conectar.return_value.cursor.return_value = cursor
+
+        resposta = self.client.get(
+            "/jogadores/nba:2544/nba?temporada=2026-27",
+            headers={"Authorization": f"Bearer {_token()}"},
+        )
+
+        self.assertEqual(resposta.status_code, 404)
+        self.assertEqual(resposta.json["temporada"], "2026-27")
+        self.assertIn("ainda não sincronizadas", resposta.json["erro"])
+
     @patch("jogadores.routes.buscar_jogos")
     @patch("jogadores.routes.conectar")
     def test_sincronizacao_faz_upsert_por_game_id(self, conectar, buscar_jogos):

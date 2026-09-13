@@ -5,8 +5,7 @@
 
 API RESTful para consulta e gerenciamento de estatísticas de jogadores da NBA, com autenticação JWT, controle de acesso por roles e deploy em produção.
 
-🌐 **Demo ao vivo:** [https://nba-stats-api-kfwn.onrender.com](https://nba-stats-api-kfwn.onrender.com)
-> Serviço no plano gratuito do Render — pode levar ~30s na primeira requisição após inatividade.
+🌐 **Produção:** [https://138-2-244-252.sslip.io](https://138-2-244-252.sslip.io)
 
 ---
 
@@ -141,6 +140,8 @@ psql "$DATABASE_URL" -f migrations/001_nba_sync.sql
 psql "$DATABASE_URL" -f migrations/002_seed_players.sql
 psql "$DATABASE_URL" -f migrations/003_player_game_stats.sql
 psql "$DATABASE_URL" -f migrations/004_remove_legacy_seed_duplicates.sql
+psql "$DATABASE_URL" -f migrations/005_name_login.sql
+psql "$DATABASE_URL" -f migrations/006_analises.sql
 ```
 
 `CORS_ORIGINS` recebe uma lista separada por vírgulas. Ao publicar o frontend,
@@ -176,8 +177,8 @@ Authorization: Bearer <seu_token>
 | Role | Rotas disponíveis |
 |------|------------------|
 | 🔓 Público | `POST /cadastro`, `POST /login` |
-| 🔒 Usuário logado | `GET /jogadores`, busca no catálogo da NBA e consultas de partidas |
-| 👑 Admin | Todas as rotas + `POST /jogadores`, `POST /jogadores/:code`, `DELETE /jogadores/:code` |
+| 🔒 Usuário logado | Jogadores, estatísticas e as próprias análises |
+| 👑 Admin legado | Rotas antigas de escrita de jogadores; fora do fluxo normal |
 
 ---
 
@@ -186,7 +187,7 @@ Authorization: Bearer <seu_token>
 ### Autenticação
 
 #### `POST /cadastro`
-Cria um novo usuário.
+Rota legada de cadastro por e-mail e senha. O fluxo normal usa somente `/login`.
 
 ```json
 // Body
@@ -197,14 +198,18 @@ Cria um novo usuário.
 ```
 
 #### `POST /login`
-Retorna um token JWT válido por **1 hora**.
+Cria ou recupera o usuário pelo nome normalizado e retorna um JWT válido por
+**1 hora**. Capitalização e espaços extras não criam usuários duplicados.
 
 ```json
 // Body
-{ "email": "eduardo@email.com", "senha": "minhasenha123" }
+{ "nome": "Eduardo" }
 
 // Resposta 200
-{ "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "usuario": { "id": 1, "nome": "Eduardo" }
+}
 ```
 
 ---
@@ -342,6 +347,83 @@ Remove o jogador e todos os seus registros de pontuação.
 
 ---
 
+## Contrato para o frontend
+
+### Login e JWT
+
+`POST /login`
+
+```json
+{ "nome": "Eduardo" }
+```
+
+O frontend deve guardar o campo `token` da resposta e enviá-lo nas rotas
+protegidas:
+
+```http
+Authorization: Bearer <token>
+```
+
+### Estatísticas e mercados
+
+`GET /jogadores/<id>/nba?temporada=2025-26&tipo=Todos`
+
+As temporadas aceitas são `2025-26` e `2026-27`. O filtro `tipo` aceita
+`Todos`, `Regular Season` ou `Playoffs`. Cada partida mantém os campos
+anteriores e também expõe, quando os componentes existem:
+
+```json
+{
+  "pontos": 28,
+  "assistencias": 9,
+  "rebotes": 11,
+  "cestas_3": 4,
+  "tentativas_3": 8,
+  "pa": 37,
+  "ar": 20,
+  "par": 48
+}
+```
+
+Os mercados aceitos são `pontos`, `assistencias`, `rebotes`, `cestas_3`,
+`tentativas_3`, `pa`, `ar` e `par`. Se um componente estiver ausente,
+o mercado composto não é calculado para aquela partida e ela é contabilizada
+em `jogos_sem_dado` na análise.
+
+### Análises salvas
+
+- `POST /analises`: calcula e salva um snapshot.
+- `GET /analises`: lista somente as análises do usuário do JWT.
+- `GET /analises/<id>`: abre uma análise do próprio usuário.
+- `DELETE /analises/<id>`: apaga uma análise do próprio usuário.
+
+Exemplo para salvar:
+
+```json
+{
+  "jogador_id": "nba:2544",
+  "temporada": "2025-26",
+  "tipo_temporada": "Todos",
+  "mercado": "par",
+  "quantidade_jogos": 10,
+  "linha": 39.5,
+  "odd": 1.9,
+  "lado": "over"
+}
+```
+
+`quantidade_jogos` aceita `5`, `10`, `15`, `20` ou `"todos"`.
+Pushes não entram como acerto nem erro, e o percentual usa somente decisões.
+A resposta salva inclui média, mediana, maior e menor valor, acertos, erros,
+pushes, percentual, sequência, partidas do snapshot, `created_at` e
+`updated_at`.
+
+Erros de autenticação retornam `401`, recursos não encontrados retornam
+`404` e configurações semanticamente inválidas retornam `422`, sempre com
+um objeto JSON contendo `erro`.
+
+---
+
 ## Sincronizar as temporadas pelo PC
 
 O servidor de produção lê os dados salvos no PostgreSQL e não consulta a NBA
@@ -389,12 +471,12 @@ token recebe os dados.
 
 ## 🛡️ Segurança
 
-- Senhas com **bcrypt** (hash + salt automático)
-- Tokens JWT com **expiração de 1 hora** (`exp` + `iat` no payload)
+- Senhas do cadastro legado com **bcrypt** (hash + salt automático)
+- Tokens JWT com **expiração de 1 hora** e usuário estável em `sub`
 - Credenciais em **variáveis de ambiente** — nunca no código
 - Conexão com banco via **SSL em produção** (`sslmode=require`)
 - Decorators reutilizáveis `@login_required` e `@admin_required`
-- Erros JWT diferenciados: token expirado vs. token inválido vs. erro interno
+- Erros de autenticação retornados em JSON sem detalhes internos
 
 ---
 

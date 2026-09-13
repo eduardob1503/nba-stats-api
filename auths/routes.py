@@ -122,6 +122,9 @@ def login():
         )
         usuario_id, nome_salvo, is_admin = cur.fetchone()
         conn.commit()
+    except Exception:
+        conn.rollback()
+        return jsonify({"erro": "nao foi possivel realizar o login"}), 500
     finally:
         cur.close()
         conn.close()

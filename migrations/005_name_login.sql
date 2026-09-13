@@ -23,7 +23,10 @@ WITH nomes_repetidos AS (
     FROM usuarios
 )
 UPDATE usuarios AS u
-SET nome_normalizado = u.nome_normalizado || '-' || u.id
+SET nome_normalizado = LEFT(
+        u.nome_normalizado,
+        100 - LENGTH('-' || u.id)
+    ) || '-' || u.id
 FROM nomes_repetidos AS r
 WHERE u.id = r.id
   AND r.posicao > 1;

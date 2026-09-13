@@ -35,10 +35,11 @@ _cors_padrao = ",".join(
         "http://127.0.0.1:5173",
         "http://localhost:8080",
         "http://127.0.0.1:8080",
+        "https://nba-prop-insights.vercel.app",
     ]
 )
 
-CORS_ORIGINS = {
+CORS_ORIGINS = {"https://nba-prop-insights.vercel.app"} | {
     origem.strip().rstrip("/")
     for origem in os.getenv("CORS_ORIGINS", _cors_padrao).split(",")
     if origem.strip()
