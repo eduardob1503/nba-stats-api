@@ -72,13 +72,23 @@ class NBAServiceTest(unittest.TestCase):
                     "Game_ID": "002",
                     "GAME_DATE": "NOV 01, 2025",
                     "MATCHUP": "LAL vs. MIA",
+                    "WL": "W",
+                    "MIN": "35:30",
                     "PTS": 31,
+                    "REB": 8,
+                    "AST": 7,
+                    "FG3M": 4,
+                    "FG3A": 9,
                 },
                 {
                     "Game_ID": "001",
                     "GAME_DATE": "OCT 29, 2025",
                     "MATCHUP": "LAL @ MIN",
                     "PTS": 27,
+                    "REB": 6,
+                    "AST": 9,
+                    "FG3M": 2,
+                    "FG3A": 7,
                 },
             ]
         }
@@ -90,6 +100,11 @@ class NBAServiceTest(unittest.TestCase):
 
         self.assertEqual([jogo["pontos"] for jogo in resultado["jogos"]], [31, 27])
         self.assertEqual(resultado["jogos"][0]["game_id"], "002")
+        self.assertEqual(resultado["jogos"][0]["assistencias"], 7)
+        self.assertEqual(resultado["jogos"][0]["rebotes"], 8)
+        self.assertEqual(resultado["jogos"][0]["cestas_3"], 4)
+        self.assertEqual(resultado["jogos"][0]["tentativas_3"], 9)
+        self.assertEqual(resultado["jogos"][0]["minutos"], 35.5)
 
 
 if __name__ == "__main__":

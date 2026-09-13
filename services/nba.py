@@ -2,6 +2,7 @@ import os
 import re
 import unicodedata
 from datetime import date, datetime
+from math import isfinite
 
 from nba_api.stats.endpoints import playergamelog
 from nba_api.stats.static import players as nba_players
@@ -148,6 +149,22 @@ def _converter_data(data_texto):
     return None
 
 
+def _numero(valor, inteiro=False):
+    if valor in (None, "") or isinstance(valor, bool):
+        return None
+    try:
+        if isinstance(valor, str) and ":" in valor and not inteiro:
+            minutos, segundos = valor.split(":", 1)
+            numero = float(minutos) + float(segundos) / 60
+        else:
+            numero = float(valor)
+    except (TypeError, ValueError):
+        return None
+    if not isfinite(numero):
+        return None
+    return int(numero) if inteiro else round(numero, 2)
+
+
 def buscar_jogos(nome, temporada=None, tipo_temporada="Regular Season", nba_player_id=None):
     temporada = validar_temporada(temporada)
     if tipo_temporada not in TIPOS_DE_TEMPORADA:
@@ -178,15 +195,24 @@ def buscar_jogos(nome, temporada=None, tipo_temporada="Regular Season", nba_play
         # O endpoint histórico usa "Game_ID", enquanto outras respostas da NBA
         # normalizam o mesmo campo como "GAME_ID".
         game_id = registro.get("GAME_ID") or registro.get("Game_ID")
-        pontos = registro.get("PTS")
-        if game_id is None or not isinstance(pontos, (int, float)):
+        if game_id is None:
             continue
         jogos.append(
             {
                 "game_id": str(game_id),
                 "data": _converter_data(registro.get("GAME_DATE")),
                 "adversario": registro.get("MATCHUP"),
-                "pontos": pontos,
+                "resultado": registro.get("WL"),
+                "minutos": _numero(registro.get("MIN")),
+                "pontos": _numero(registro.get("PTS"), inteiro=True),
+                "rebotes": _numero(registro.get("REB"), inteiro=True),
+                "assistencias": _numero(registro.get("AST"), inteiro=True),
+                "roubos": _numero(registro.get("STL"), inteiro=True),
+                "tocos": _numero(registro.get("BLK"), inteiro=True),
+                "turnovers": _numero(registro.get("TOV"), inteiro=True),
+                "cestas_3": _numero(registro.get("FG3M"), inteiro=True),
+                "tentativas_3": _numero(registro.get("FG3A"), inteiro=True),
+                "plus_minus": _numero(registro.get("PLUS_MINUS")),
             }
         )
 

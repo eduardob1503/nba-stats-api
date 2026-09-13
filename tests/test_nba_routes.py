@@ -94,6 +94,10 @@ class NBARoutesTest(unittest.TestCase):
                 "data": date(2026, 5, 1),
                 "adversario": "LAL vs. GSW",
                 "pontos": 28,
+                "assistencias": 9,
+                "rebotes": 11,
+                "cestas_3": 4,
+                "tentativas_3": 8,
             }],
         }
 
@@ -105,8 +109,50 @@ class NBARoutesTest(unittest.TestCase):
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(resposta.json["origem"], "banco")
         self.assertEqual(resposta.json["tipo_temporada"], "Todos")
+        self.assertEqual(resposta.json["partidas"][0]["pa"], 37)
+        self.assertEqual(resposta.json["partidas"][0]["ar"], 20)
+        self.assertEqual(resposta.json["partidas"][0]["par"], 48)
+        self.assertEqual(resposta.json["medias"]["cestas_3"], 4)
+        self.assertEqual(resposta.json["medias"]["tentativas_3"], 8)
+        self.assertEqual(resposta.json["medias"]["par"], 48)
         buscar_salvos.assert_called_once_with(2544, "2025-26", "Todos")
         buscar_jogos.assert_not_called()
+
+    @patch("jogadores.routes.buscar_jogos")
+    @patch("jogadores.routes.conectar")
+    def test_dado_ausente_nao_vira_zero_em_mercado_composto(
+        self, conectar, buscar_jogos
+    ):
+        cursor = Mock()
+        cursor.fetchone.return_value = ("nba:2544", "LeBron James", 2544)
+        conectar.return_value.cursor.return_value = cursor
+        buscar_jogos.return_value = {
+            "jogador": {"id": 2544, "nome": "LeBron James", "ativo": True},
+            "temporada": "2025-26",
+            "tipo_temporada": "Regular Season",
+            "jogos": [{
+                "game_id": "001",
+                "data": date(2025, 10, 21),
+                "adversario": "LAL vs. GSW",
+                "pontos": 20,
+                "assistencias": None,
+                "rebotes": 10,
+                "cestas_3": 0,
+                "tentativas_3": 0,
+            }],
+        }
+
+        resposta = self.client.get(
+            "/jogadores/nba:2544/nba?temporada=2025-26",
+            headers={"Authorization": f"Bearer {_token()}"},
+        )
+
+        partida = resposta.json["partidas"][0]
+        self.assertNotIn("pa", partida)
+        self.assertNotIn("ar", partida)
+        self.assertNotIn("par", partida)
+        self.assertEqual(resposta.json["medias"]["cestas_3"], 0)
+        self.assertNotIn("pa", resposta.json["medias"])
 
     @patch("jogadores.routes.buscar_jogos")
     @patch("jogadores.routes.conectar")
