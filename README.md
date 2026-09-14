@@ -424,6 +424,124 @@ um objeto JSON contendo `erro`.
 
 ---
 
+## Scanner de oportunidades EV+
+
+`GET /oportunidades/ev` é uma rota protegida que compara a mesma configuração
+de aposta com o histórico de todos os jogadores sincronizados. Ela retorna
+somente resultados com EV positivo, do maior para o menor, sem criar uma
+análise salva e sem consultar a NBA API externa.
+
+```http
+GET /oportunidades/ev?temporada=2025-26&tipo_temporada=Regular%20Season&mercado=cestas_3&linha=1.5&odd=1.90&lado=over&quantidade_jogos=10&minimo_jogos=5&limite=20
+Authorization: Bearer <token>
+```
+
+Parâmetros obrigatórios:
+
+- `temporada`: `2025-26` ou `2026-27`;
+- `mercado`: `pontos`, `assistencias`, `rebotes`, `cestas_3`,
+  `tentativas_3`, `pa`, `ar` ou `par`;
+- `linha`: decimal maior ou igual a zero;
+- `odd`: odd decimal maior que 1;
+- `lado`: `over` ou `under`;
+- `quantidade_jogos`: `5`, `10`, `15`, `20` ou `todos`.
+
+Parâmetros opcionais:
+
+- `tipo_temporada`: `Todos` (padrão), `Regular Season` ou `Playoffs`;
+- `minimo_jogos`: inteiro positivo, padrão `5`, e não pode superar uma
+  quantidade de jogos numérica selecionada;
+- `limite`: inteiro de `1` a `100`, padrão `20`.
+
+`cestas_3` representa bolas de três convertidas e `tentativas_3`, as
+tentativas. Os compostos são `pa = pontos + assistencias`,
+`ar = assistencias + rebotes` e `par = pontos + assistencias + rebotes`.
+Se qualquer componente estiver ausente, a partida é ignorada para aquele
+mercado e contabilizada em `jogos_sem_dado`.
+
+Para `over`, um valor acima da linha é acerto; para `under`, um valor abaixo
+da linha é acerto. Valor igual à linha é `push`: ele é informado separadamente
+e não entra como acerto, erro ou no denominador da probabilidade histórica.
+
+As fórmulas, calculadas com `Decimal`, são:
+
+```text
+probabilidade_historica = acertos / (acertos + erros)
+probabilidade_implicita = 1 / odd
+edge = probabilidade_historica - probabilidade_implicita
+ev = (probabilidade_historica * odd) - 1
+ev_percentual = ev * 100
+```
+
+Edge é a vantagem da probabilidade histórica sobre a probabilidade implícita.
+EV é o retorno esperado por unidade apostada; portanto, são medidas diferentes.
+A ordenação usa os valores integrais, antes do arredondamento: EV,
+probabilidade histórica e número de decisões em ordem decrescente, seguidos
+pelo nome em ordem crescente.
+
+Exemplo resumido de resposta `200`:
+
+```json
+{
+  "filtros": {
+    "temporada": "2025-26",
+    "tipo_temporada": "Regular Season",
+    "mercado": "cestas_3",
+    "linha": 1.5,
+    "odd": 1.9,
+    "lado": "over",
+    "quantidade_jogos": 10,
+    "minimo_jogos": 5,
+    "limite": 20
+  },
+  "total_jogadores_avaliados": 582,
+  "total_elegiveis": 310,
+  "total_ev_positivo": 27,
+  "oportunidades": [
+    {
+      "posicao": 1,
+      "jogador": {
+        "id": "nba:2544",
+        "nba_player_id": 2544,
+        "nome": "LeBron James",
+        "ativo": null
+      },
+      "jogos_selecionados": 10,
+      "jogos_validos": 10,
+      "jogos_sem_dado": 0,
+      "acertos": 8,
+      "erros": 2,
+      "pushes": 0,
+      "probabilidade_historica": 0.8,
+      "percentual_acerto": 80,
+      "probabilidade_implicita": 0.526316,
+      "percentual_implicito": 52.63,
+      "edge": 0.273684,
+      "edge_percentual": 27.37,
+      "ev": 0.52,
+      "ev_percentual": 52,
+      "media": 2.7,
+      "mediana": 3,
+      "maior_valor": 5,
+      "menor_valor": 1,
+      "ultimo_valor": 3,
+      "valores_recentes": [3, 2, 4, 1, 5, 3, 2, 3, 2, 4],
+      "ultima_partida": "2026-04-10"
+    }
+  ]
+}
+```
+
+Se nenhum jogador tiver EV positivo, a API retorna `200` com
+`"oportunidades": []`. Parâmetros inválidos retornam `422`; JWT ausente,
+inválido ou expirado retorna `401`; uma temporada ainda sem estatísticas
+sincronizadas retorna `404` com a temporada solicitada.
+
+O scanner usa desempenho histórico como estimativa. Ele não garante resultados
+futuros e não substitui avaliação de risco.
+
+---
+
 ## Sincronizar as temporadas pelo PC
 
 O servidor de produção lê os dados salvos no PostgreSQL e não consulta a NBA

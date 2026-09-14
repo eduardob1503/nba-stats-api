@@ -4,6 +4,7 @@ from analises.routes import analises_bp
 from auths.routes import auth_bp
 from config import AUTO_MIGRATE, CORS_ORIGINS
 from jogadores.routes import jogadores_bp
+from oportunidades.routes import oportunidades_bp
 from sync_data.routes import sync_bp
 
 
@@ -16,6 +17,7 @@ if AUTO_MIGRATE:
 app = Flask(__name__)
 app.register_blueprint(analises_bp)
 app.register_blueprint(jogadores_bp)
+app.register_blueprint(oportunidades_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(sync_bp)
 
