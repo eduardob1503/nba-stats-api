@@ -451,7 +451,35 @@ Parâmetros opcionais:
 - `tipo_temporada`: `Todos` (padrão), `Regular Season` ou `Playoffs`;
 - `minimo_jogos`: inteiro positivo, padrão `5`, e não pode superar uma
   quantidade de jogos numérica selecionada;
-- `limite`: inteiro de `1` a `100`, padrão `20`.
+- `limite`: inteiro de `1` a `100`, padrão `20`;
+- `linhas_plausiveis`: `true` ou `false`, padrão `false`;
+- `percentil_inferior`: decimal entre `0` e `50`, padrão `25`;
+- `percentil_superior`: decimal entre `50` e `100`, padrão `75`;
+- `edge_minimo_percentual`: decimal maior ou igual a zero, padrão `3`;
+- `edge_maximo_percentual`: decimal maior que o mínimo e no máximo `100`,
+  padrão `20`.
+
+O modo de linhas plausíveis é ativado explicitamente com
+`linhas_plausiveis=true`. Uma linha é estatisticamente plausível quando fica
+dentro da faixa de percentis do próprio jogador e o edge fica dentro dos
+limites configurados. Isso não significa que a odd esteja realmente disponível
+em uma casa de apostas.
+
+```http
+GET /oportunidades/ev?temporada=2025-26&tipo_temporada=Regular%20Season&mercado=pontos&linha=20&odd=2.00&lado=over&quantidade_jogos=10&minimo_jogos=10&limite=20&linhas_plausiveis=true&percentil_inferior=25&percentil_superior=75&edge_minimo_percentual=3&edge_maximo_percentual=20
+Authorization: Bearer <token>
+```
+
+O backend não recebe nomes de presets. O frontend pode oferecer:
+
+- Abrangente: P15–P85;
+- Equilibrado: P25–P75;
+- Rigoroso: P35–P65;
+- Personalizado: percentis escolhidos pelo usuário.
+
+Quando `linhas_plausiveis=false`, todos os parâmetros avançados são validados
+e retornados em `filtros`, mas não excluem oportunidades. Esse é o padrão para
+preservar clientes anteriores.
 
 `cestas_3` representa bolas de três convertidas e `tentativas_3`, as
 tentativas. Os compostos são `pa = pontos + assistencias`,
@@ -462,6 +490,17 @@ mercado e contabilizada em `jogos_sem_dado`.
 Para `over`, um valor acima da linha é acerto; para `under`, um valor abaixo
 da linha é acerto. Valor igual à linha é `push`: ele é informado separadamente
 e não entra como acerto, erro ou no denominador da probabilidade histórica.
+Pushes entram normalmente na distribuição usada pelos percentis. Não existe
+exigência de quantidade mínima de erros: continuam obrigatórios apenas o mínimo
+de jogos válidos, uma decisão válida e EV positivo.
+
+Os percentis usam somente valores válidos do mercado dentro da amostra e o
+método linear R-7, equivalente ao padrão linear do NumPy, sem dependência de
+NumPy. Depois de ordenar os valores, o índice é
+`(n - 1) × (percentil / 100)`; índices fracionários são interpolados entre os
+dois valores vizinhos. A linha é aceita de forma inclusiva:
+`valor_inferior <= linha <= valor_superior`. Todos os cálculos e comparações
+são feitos com `Decimal` antes do arredondamento da resposta.
 
 As fórmulas, calculadas com `Decimal`, são:
 
@@ -492,11 +531,27 @@ Exemplo resumido de resposta `200`:
     "lado": "over",
     "quantidade_jogos": 10,
     "minimo_jogos": 5,
-    "limite": 20
+    "limite": 20,
+    "linhas_plausiveis": true,
+    "percentil_inferior": 25,
+    "percentil_superior": 75,
+    "edge_minimo_percentual": 3,
+    "edge_maximo_percentual": 20
   },
   "total_jogadores_avaliados": 582,
-  "total_elegiveis": 310,
+  "total_elegiveis": 560,
   "total_ev_positivo": 27,
+  "total_ev_positivo_bruto": 230,
+  "total_linhas_plausiveis": 27,
+  "total_retornado": 20,
+  "exclusoes": {
+    "jogos_insuficientes": 20,
+    "sem_decisoes": 2,
+    "ev_nao_positivo": 330,
+    "linha_fora_percentis": 160,
+    "edge_abaixo_minimo": 10,
+    "edge_acima_maximo": 33
+  },
   "oportunidades": [
     {
       "posicao": 1,
@@ -509,28 +564,46 @@ Exemplo resumido de resposta `200`:
       "jogos_selecionados": 10,
       "jogos_validos": 10,
       "jogos_sem_dado": 0,
-      "acertos": 8,
-      "erros": 2,
+      "acertos": 7,
+      "erros": 3,
       "pushes": 0,
-      "probabilidade_historica": 0.8,
-      "percentual_acerto": 80,
+      "probabilidade_historica": 0.7,
+      "percentual_acerto": 70,
       "probabilidade_implicita": 0.526316,
       "percentual_implicito": 52.63,
-      "edge": 0.273684,
-      "edge_percentual": 27.37,
-      "ev": 0.52,
-      "ev_percentual": 52,
+      "edge": 0.173684,
+      "edge_percentual": 17.37,
+      "ev": 0.33,
+      "ev_percentual": 33,
       "media": 2.7,
       "mediana": 3,
       "maior_valor": 5,
       "menor_valor": 1,
       "ultimo_valor": 3,
-      "valores_recentes": [3, 2, 4, 1, 5, 3, 2, 3, 2, 4],
-      "ultima_partida": "2026-04-10"
+      "valores_recentes": [3, 2, 4, 1, 5, 3, 1, 3, 1, 4],
+      "ultima_partida": "2026-04-10",
+      "faixa_percentil": {
+        "percentil_inferior": 25,
+        "valor_inferior": 1.25,
+        "percentil_superior": 75,
+        "valor_superior": 3.75
+      },
+      "linha_dentro_faixa": true,
+      "edge_dentro_faixa": true
     }
   ]
 }
 ```
+
+As exclusões são mutuamente exclusivas. Cada jogador é contado somente no
+primeiro motivo aplicável, nesta ordem: `jogos_insuficientes`, `sem_decisoes`,
+`ev_nao_positivo`, `linha_fora_percentis`, `edge_abaixo_minimo` e
+`edge_acima_maximo`. `total_ev_positivo_bruto` é contado antes da plausibilidade;
+`total_ev_positivo` e `total_linhas_plausiveis` são contados depois dela e antes
+do limite; `total_retornado` é o tamanho final de `oportunidades`.
+
+No modo desativado, as três exclusões avançadas são zero e
+`total_ev_positivo == total_ev_positivo_bruto == total_linhas_plausiveis`.
 
 Se nenhum jogador tiver EV positivo, a API retorna `200` com
 `"oportunidades": []`. Parâmetros inválidos retornam `422`; JWT ausente,
@@ -538,7 +611,8 @@ inválido ou expirado retorna `401`; uma temporada ainda sem estatísticas
 sincronizadas retorna `404` com a temporada solicitada.
 
 O scanner usa desempenho histórico como estimativa. Ele não garante resultados
-futuros e não substitui avaliação de risco.
+futuros, não substitui avaliação de risco e não confirma a disponibilidade da
+linha ou da odd em casas de apostas.
 
 ---
 

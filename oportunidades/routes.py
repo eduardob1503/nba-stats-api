@@ -10,6 +10,7 @@ from services.analises import (
     MERCADOS_PERMITIDOS,
     QUANTIDADES_PERMITIDAS,
     normalizar_quantidade,
+    numero_json,
     validar_decimal,
 )
 from services.oportunidades import calcular_ranking
@@ -33,6 +34,21 @@ def _inteiro(valor, campo, minimo, maximo=None):
     if numero < minimo or (maximo is not None and numero > maximo):
         raise ValueError(f"{campo} invalido")
     return numero
+
+
+def _booleano(valor, campo):
+    if valor == "true":
+        return True
+    if valor == "false":
+        return False
+    raise ValueError(f"{campo} invalido")
+
+
+def _decimal_avancado(valor, campo):
+    try:
+        return validar_decimal(valor, campo, Decimal("0"))
+    except ValueError:
+        raise ValueError(f"{campo} invalido") from None
 
 
 def _validar_filtros(args):
@@ -64,6 +80,37 @@ def _validar_filtros(args):
         raise ValueError("minimo de jogos invalido")
     limite = _inteiro(args.get("limite", "20"), "limite", 1, 100)
 
+    linhas_plausiveis = _booleano(
+        args.get("linhas_plausiveis", "false"), "linhas plausiveis"
+    )
+    percentil_inferior = _decimal_avancado(
+        args.get("percentil_inferior", "25"),
+        "percentil inferior",
+    )
+    percentil_superior = _decimal_avancado(
+        args.get("percentil_superior", "75"),
+        "percentil superior",
+    )
+    if percentil_inferior >= percentil_superior:
+        raise ValueError("faixa de percentis invalida")
+    if percentil_inferior > 50:
+        raise ValueError("percentil inferior invalido")
+    if percentil_superior < 50 or percentil_superior > 100:
+        raise ValueError("percentil superior invalido")
+
+    edge_minimo = _decimal_avancado(
+        args.get("edge_minimo_percentual", "3"),
+        "edge minimo",
+    )
+    edge_maximo = _decimal_avancado(
+        args.get("edge_maximo_percentual", "20"),
+        "edge maximo",
+    )
+    if edge_minimo >= edge_maximo:
+        raise ValueError("faixa de edge invalida")
+    if edge_maximo > 100:
+        raise ValueError("edge maximo invalido")
+
     return {
         "temporada": temporada,
         "tipo_temporada": tipo,
@@ -74,6 +121,11 @@ def _validar_filtros(args):
         "quantidade_jogos": quantidade,
         "minimo_jogos": minimo_jogos,
         "limite": limite,
+        "linhas_plausiveis": linhas_plausiveis,
+        "percentil_inferior": percentil_inferior,
+        "percentil_superior": percentil_superior,
+        "edge_minimo_percentual": edge_minimo,
+        "edge_maximo_percentual": edge_maximo,
     }
 
 
@@ -183,11 +235,20 @@ def listar_ev_positivo():
         config["lado"],
         config["minimo_jogos"],
         config["limite"],
+        linhas_plausiveis=config["linhas_plausiveis"],
+        percentil_inferior=config["percentil_inferior"],
+        percentil_superior=config["percentil_superior"],
+        edge_minimo_percentual=config["edge_minimo_percentual"],
+        edge_maximo_percentual=config["edge_maximo_percentual"],
     )
     filtros = {
         **config,
-        "linha": float(config["linha"]),
-        "odd": float(config["odd"]),
+        "linha": numero_json(config["linha"]),
+        "odd": numero_json(config["odd"]),
+        "percentil_inferior": numero_json(config["percentil_inferior"]),
+        "percentil_superior": numero_json(config["percentil_superior"]),
+        "edge_minimo_percentual": numero_json(config["edge_minimo_percentual"]),
+        "edge_maximo_percentual": numero_json(config["edge_maximo_percentual"]),
         "quantidade_jogos": (
             int(config["quantidade_jogos"])
             if config["quantidade_jogos"].isdigit()
