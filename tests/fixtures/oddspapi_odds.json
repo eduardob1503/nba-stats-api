@@ -1,0 +1,72 @@
+{
+  "bookmakers": [
+    {
+      "name": "betano",
+      "markets": [
+        {
+          "id": "m-points",
+          "marketName": "Player Points",
+          "outcomes": [
+            {
+              "bookmakerOutcomeId": "p1|LeBron James|Over|25.5",
+              "name": "Over",
+              "player": {"id": "p1", "name": "LeBron James"},
+              "handicap": 25.5,
+              "price": 1.9,
+              "active": true
+            },
+            {
+              "bookmakerOutcomeId": "p1|James, LeBron|Under|25.5",
+              "name": "Under",
+              "player": {"id": "p1", "name": "James, LeBron"},
+              "handicap": 25.5,
+              "price": 1.85,
+              "active": true
+            },
+            {
+              "bookmakerOutcomeId": "p1|LeBron James|Over|27.5",
+              "name": "Over",
+              "player": {"id": "p1", "name": "LeBron James"},
+              "handicap": 27.5,
+              "price": 2.1,
+              "active": true
+            },
+            {
+              "bookmakerOutcomeId": "invalid-price",
+              "name": "Over",
+              "playerName": "LeBron James",
+              "handicap": 30.5,
+              "price": 1.0,
+              "active": true
+            }
+          ]
+        },
+        {
+          "id": "m-assists",
+          "marketName": "Assists",
+          "outcomes": [
+            {
+              "bookmakerOutcomeId": "p2|Nikola Jokic|Over|8.5",
+              "name": "Over",
+              "player": {"id": "p2", "name": "Nikola Jokić"},
+              "handicap": 8.5,
+              "odds": 1.95,
+              "active": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "outra-casa",
+      "markets": [
+        {
+          "id": "m-points",
+          "outcomes": [
+            {"name": "Over", "playerName": "LeBron James", "line": 20.5, "odds": 9.9}
+          ]
+        }
+      ]
+    }
+  ]
+}

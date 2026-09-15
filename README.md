@@ -142,6 +142,7 @@ psql "$DATABASE_URL" -f migrations/003_player_game_stats.sql
 psql "$DATABASE_URL" -f migrations/004_remove_legacy_seed_duplicates.sql
 psql "$DATABASE_URL" -f migrations/005_name_login.sql
 psql "$DATABASE_URL" -f migrations/006_analises.sql
+psql "$DATABASE_URL" -f migrations/007_odds_reais.sql
 ```
 
 `CORS_ORIGINS` recebe uma lista separada por vírgulas. Ao publicar o frontend,
@@ -613,6 +614,151 @@ sincronizadas retorna `404` com a temporada solicitada.
 O scanner usa desempenho histórico como estimativa. Ele não garante resultados
 futuros, não substitui avaliação de risco e não confirma a disponibilidade da
 linha ou da odd em casas de apostas.
+
+---
+
+## Odds reais da Betano via OddsPapi
+
+A integração com a OddsPapi é executada exclusivamente pelo backend. Nenhum
+endpoint comum do frontend chama a API externa. A chave nunca é retornada,
+registrada ou salva no PostgreSQL, e URLs contendo `apiKey` também não são
+persistidas.
+
+Configuração:
+
+```env
+ODDSPAPI_API_KEY=
+ODDSPAPI_BASE_URL=https://api.oddspapi.io/v4
+ODDSPAPI_BOOKMAKERS=betano
+ODDSPAPI_SPORT_ID=11
+ODDSPAPI_TOURNAMENT_ID=132
+ODDSPAPI_TIMEOUT=20
+ODDSPAPI_SYNC_MAX_REQUESTS=15
+ODDSPAPI_SYNC_COOLDOWN_MINUTES=30
+ODDSPAPI_FIXTURE_WINDOW_HOURS=48
+ODDSPAPI_ODDS_MAX_AGE_MINUTES=60
+ODDSPAPI_MARKETS_CACHE_HOURS=168
+```
+
+A ausência de `ODDSPAPI_API_KEY` não impede a API de iniciar. Nesse caso,
+`GET /odds/status` informa `configurado: false`. Nunca coloque a chave real no
+`.env.example`, README, logs ou respostas HTTP.
+
+### Migration
+
+A migration progressiva [007_odds_reais.sql](migrations/007_odds_reais.sql)
+cria tabelas independentes para status/quota, catálogo de mercados, eventos,
+mapeamentos de jogadores, snapshots de cotações e execuções da sincronização.
+Ela não remove nem altera dados existentes.
+
+```bash
+python migrate.py
+```
+
+Em produção, aplique essa migration somente durante um deploy autorizado.
+
+### Sincronização manual e proteção da cota
+
+```bash
+# Mostra a estimativa e não consulta /odds
+python -m scripts.sincronizar_odds_nba --bookmaker betano --dry-run
+
+# Limita eventos e mercados
+python -m scripts.sincronizar_odds_nba \
+  --bookmaker betano \
+  --max-eventos 5 \
+  --mercados pontos,assistencias,rebotes,cestas_3,pa,ar,par
+```
+
+O comando consulta conta, catálogo quando o cache longo expira e fixtures da
+janela futura. Antes de consultar odds por partida, mostra a estimativa e recusa
+execuções acima de `ODDSPAPI_SYNC_MAX_REQUESTS` ou da cota restante. Um advisory
+lock do PostgreSQL impede concorrência e o cooldown evita execuções repetidas.
+HTTP 429 nunca é repetido automaticamente; timeouts e 5xx possuem tentativas
+curtas e limitadas. Toda execução é registrada sem chave ou URL sensível.
+
+O `--dry-run` ainda pode usar chamadas de conta, catálogo e fixtures, mas não
+chama `/odds`. Como o plano gratuito é limitado, não há job frequente habilitado.
+
+### Catálogo e mapeamento
+
+O catálogo não usa IDs numéricos fixos. Ele considera `sportId`, nome, tipo e
+flag de player prop, reconhecendo:
+
+- pontos;
+- assistências;
+- rebotes;
+- cestas de três convertidas;
+- pontos + assistências (`pa`);
+- assistências + rebotes (`ar`);
+- pontos + rebotes + assistências (`par`).
+
+`tentativas_3` permanece no histórico, mas não é criada como prop real sem um
+mercado correspondente do provedor. Nomes ambíguos como Points + Rebounds não
+são interpretados como pontos.
+
+Jogadores são comparados sem diferenças de caixa, acentos ou espaços e o
+formato `Sobrenome, Nome` é suportado. O identificador do provedor tem prioridade.
+Somente uma correspondência exata e única é confirmada automaticamente; casos
+desconhecidos ou ambíguos ficam em `/odds/mapeamentos/pendentes`.
+
+### Endpoints de leitura
+
+Todos exigem `Authorization: Bearer <token>` e consultam somente o PostgreSQL:
+
+- `GET /odds/status`: configuração segura, quota armazenada e última execução;
+- `GET /odds/mapeamentos/pendentes`: jogadores ainda não associados;
+- `GET /odds/props`: cotações armazenadas, com filtros `mercado`, `jogador_id`,
+  `evento_id`, `lado`, `bookmaker` e `somente_ativas`.
+
+Exemplo:
+
+```http
+GET /odds/props?mercado=pontos&lado=over&bookmaker=betano&somente_ativas=true
+Authorization: Bearer <token>
+```
+
+Cotações ativas mais antigas que `ODDSPAPI_ODDS_MAX_AGE_MINUTES` e eventos que
+já começaram não são retornados como props ativas. Linhas alternativas são
+preservadas. Uma resposta completa nova marca como inativas as cotações que
+desapareceram, enquanto snapshots históricos continuam no banco. Payloads
+idênticos são deduplicados por hash.
+
+### Scanner com linhas e odds reais
+
+`GET /oportunidades/ev-reais` usa cada linha e odd ativa da Betano e cruza com
+o histórico local. Ele nunca chama a OddsPapi durante a requisição.
+
+```http
+GET /oportunidades/ev-reais?temporada=2025-26&tipo_temporada=Regular%20Season&mercado=pontos&lado=over&quantidade_jogos=10&minimo_jogos=5&linhas_plausiveis=true&percentil_inferior=25&percentil_superior=75&edge_minimo_percentual=3&edge_maximo_percentual=20&bookmaker=betano&limite=20
+Authorization: Bearer <token>
+```
+
+Não são enviados `linha` ou `odd`: esses campos vêm da cotação armazenada. O
+cálculo usa `Decimal`, exclui pushes das decisões e ordena por EV, edge,
+decisões e nome. A resposta inclui evento, bookmaker, linha, odd, probabilidades,
+edge, EV, acertos, erros, pushes, faixa de percentis e horário da captura.
+
+Quando ainda não existem odds:
+
+```json
+{
+  "status": "sem_odds",
+  "mensagem": "Ainda nao existem odds da NBA disponiveis na Betano.",
+  "bookmaker": "betano",
+  "oportunidades": [],
+  "total": 0
+}
+```
+
+### Limitações antes da primeira resposta real
+
+Os parsers aceitam aliases comuns e estruturas aninhadas, mas os nomes exatos
+dos campos, IDs de mercados e possíveis formatos de `bookmakerOutcomeId` ainda
+precisam ser confirmados com uma resposta real da NBA/Betano. Faça primeiro um
+`--dry-run`; depois autorize uma sincronização com `--max-eventos 1`. Se o
+payload real divergir, salve apenas uma amostra sanitizada, sem chave, para criar
+um novo fixture automatizado antes de ampliar a sincronização.
 
 ---
 

@@ -1,0 +1,20 @@
+{
+  "fixtures": [
+    {
+      "id": "fixture-1",
+      "startTime": "2026-10-21T00:30:00Z",
+      "home": {"name": "Los Angeles Lakers"},
+      "away": {"name": "Golden State Warriors"},
+      "status": "scheduled",
+      "hasOdds": true
+    },
+    {
+      "id": "fixture-final",
+      "startTime": "2026-10-20T00:30:00Z",
+      "home": {"name": "Boston Celtics"},
+      "away": {"name": "New York Knicks"},
+      "status": "finished",
+      "hasOdds": true
+    }
+  ]
+}

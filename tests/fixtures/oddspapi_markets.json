@@ -1,0 +1,13 @@
+{
+  "markets": [
+    {"id": "m-points", "sportId": 11, "marketName": "Player Points", "playerProp": true},
+    {"id": "m-assists", "sportId": 11, "marketName": "Assists", "playerProp": true},
+    {"id": "m-rebounds", "sportId": 11, "marketName": "Rebounds", "playerProp": true},
+    {"id": "m-threes", "sportId": 11, "marketName": "Three Pointers", "playerProp": true},
+    {"id": "m-pa", "sportId": 11, "marketName": "Points + Assists", "playerProp": true},
+    {"id": "m-ar", "sportId": 11, "marketName": "Assists + Rebounds", "playerProp": true},
+    {"id": "m-par", "sportId": 11, "marketName": "Points + Rebounds + Assists", "playerProp": true},
+    {"id": "m-pr", "sportId": 11, "marketName": "Points + Rebounds", "playerProp": true},
+    {"id": "m-team", "sportId": 11, "marketName": "Points", "playerProp": false}
+  ]
+}
